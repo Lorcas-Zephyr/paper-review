@@ -1,0 +1,181 @@
+软件工程硕士论文评价系统：全流程逻辑架构指南
+本指南定义了系统从输入 PDF 到输出评审报告的完整闭环逻辑，作为全团队的开发蓝图。
+一、 宏观数据流向 (The Macro Flow)
+数据摄入层：用户上传 PDF     中枢组调用 MinerU (GPU) 转化为 Markdown。
+结构化层：中枢组运行 Chapter Slicer      将全文拆解为摘要、绪论、代码等片段入库。
+分布式审计层：中枢组通过异步 API 唤醒组 2-6 的 Agent      Agent 从 DB 读片段 + 从向量库读专家评语     生成 JSON 评价。
+反思汇总层：组 7 读取所有小组的 JSON     执行冲突仲裁与语意润色    生成最终 Markdown 报告。
+二、 核心数据库架构 (Database Schema)
+推荐使用 PostgreSQL + pgvector，可参考下方，结合实际情况。
+1. 论文内容表 (paper_sections)
+字段
+类型
+说明
+paper_id
+UUID
+论文唯一标识
+section_name
+String
+章节名 (abstract, intro, methodology, code, etc.)
+content
+Text
+Markdown 格式的原始文本
+2. 专家知识库 (expert_comments)
+字段
+类型
+说明
+comment_id
+String
+评语 ID
+metric_id
+String
+关联的评价指标 ID
+text
+Text
+专家原始评语内容
+embedding
+Vector(768)
+SBERT 生成的向量，用于语义检索
+3. 任务协同表 (review_tasks)
+字段名
+类型
+约束
+说明
+id
+BigSerial
+Primary Key
+自增主键，用于物理存储排序。
+task_id
+String / UUID
+Indexed
+对应上传时的 request_id，用于追踪单词请求。
+paper_id
+UUID
+Indexed
+关联论文 ID，方便按论文拉取所有 Agent 的审计汇总。
+chunk_id
+String
+-
+对应切片 ID（如 chunk_seq_005），精确定位问题位置。
+agent_name
+String
+-
+负责的 Agent 名称（如 Methodology_Agent）。
+agent_version
+String
+-
+记录审计时的模型/逻辑版本，便于后期效果回测。
+status
+Enum
+Default: 'PENDING'
+任务状态：PENDING, RUNNING, SUCCESS, FAILED, TIMEOUT。
+score
+Integer
+-
+从 result_json 冗余出来的分数，方便直接进行统计排名。
+audit_level
+String
+-
+冗余字段（Info/Warning/Critical），用于快速筛选高危问题。
+result_json
+JSONB
+-
+存储 Agent 返回的完整原始数据（含 comment, suggestion, tags）。
+error_msg
+Text
+-
+当 status 为 FAILED 时，记录具体的错误堆栈或原因。
+usage_tokens
+Integer
+-
+统计该次任务消耗的 Token 数。
+latency_ms
+Integer
+-
+记录耗时，用于监控 Agent 性能瓶颈。
+created_at
+Timestamp
+Default: Now
+任务创建时间。
+updated_at
+Timestamp
+Default: Now
+任务最后一次状态变更时间。
+三、 API 交互规范 (FastAPI Protocol)
+所有agent组 (组2-6) 可参考统一实现以下接口：
+1. 论文切片上传协议 (Orchestrator -> Agent)
+每个 Agent 接收到的数据格式必须统一。
+{
+  "request_id": "req_20231027_001",
+  "metadata": {
+    "paper_id": "uuid-string",
+    "paper_title": "关于深度学习的研究",
+    "chunk_id": "chunk_seq_005"
+  },
+  "payload": {
+    "content": "这里是论文的第5个片段内容...",
+    "context_before": "前一段的摘要...",
+    "context_after": "后一段的开头..."
+  },
+  "config": {
+    "temperature": 0.1,
+    "max_tokens": 500
+  }
+}
+2. Agent 审计结果返回协议 (Agent -> Orchestrator)
+所有 Agent 必须按此格式返回评语。
+{
+  "request_id": "req_20231027_001",
+  "agent_info": {
+    "name": "Methodology_Agent",
+    "version": "v1.2"
+  },
+  "result": {
+    "score": 85,
+    "audit_level": "Warning",
+    "comment": "实验样本量不足",
+    "suggestion": "建议增加对照组，样本量提升至100以上",
+    "tags": ["实验设计", "统计显著性"]
+  },
+  "usage": {
+    "tokens": 120,
+    "latency_ms": 1500
+  }
+}
+四、 核心业务逻辑闭环 (Core Business Logic)
+1. 审计逻辑 (组2-6 的工作)
+每个 Agent 内部遵循：事实提取 、语义检索、评价生成。
+事实提取：利用 LLM 提取论文中的关键数值或主张。
+语义检索：使用 SBERT 计算“事实描述”与 expert_comments 表中向量的相似度，拉取最接近的专家话术。
+评价生成：将原文证据、指标要求、专家话术喂给 LLM，生成最终评语。
+2. 反思逻辑 (组7 的工作)
+一致性校验：检查各组之间是否存在矛盾（例如：格式组说“图表清晰”，代码组说“架构图缺失”）。
+幻觉过滤：核实各组返回的 evidence_quote 是否真的在 paper_sections 中存在。
+报告编排：按照导师习惯，将碎片化的 findings 串联成一篇起承转合自然的评审意见书。
+四、 平台开发与功能设计 (Platform Logic)
+要将算法变成“平台”，需要额外开发前端与交互模块。
+1. 交互式评审界面
+左右分屏：左侧展示 MinerU 解析后的 Markdown 原文，右侧展示 AI 生成的评审建议。
+锚点定位：点击右侧的“证据 (Evidence)”，左侧原文自动滚动并高亮显示对应的错误段落。
+2. 导师复核流程 (Human-in-the-loop)
+修改与确认：导师可以对 AI 生成的评语进行二次编辑，或点击“忽略”某条误报。
+一键导出：根据最终修改后的 JSON 结果，套用学校标准的评审表模板（Word/PDF）。
+3. 管理员看板
+进度监控：查看 1000 份论文的审计状态（已完成、进行中、异常）。
+指标优化：通过 Web 界面调整各 Agent 的 Prompt 或评价指标权重。
+为了实现这个平台，您可以采取以下技术路线：
+前端 (Frontend)：建议使用 React + Tailwind CSS，重点开发一个 Markdown 渲染器（支持关键词高亮和锚点跳转）。
+后端 (Backend)：在中枢组原有的 FastAPI 基础上增加业务 API，用于处理用户上传、权限管理和报告导出。
+交互逻辑：通过 paper_id 关联 paper_sections（左屏原文）和 review_tasks（右屏评语），实现“点击证据，原文跳转”。
+技术规范
+1. 总体原则
+单一职责：每个 Agent 仅负责其定义的审计维度（格式、逻辑、代码等）。
+无状态设计：Agent 不应依赖本地持久化存储，所有输入必须来自 Orchestrator。
+格式至上：API 的输入输出必须 100% 符合 JSON Schema，否则视为接入失败。
+2. 技术环境要求
+为了保证集成时的环境一致性，各小组必须统一使用以下栈：
+编程语言：Python 3.10.x，建议使用vscode或pycharm进行编程
+Web 框架：FastAPI (必须支持 async 异步处理)
+数据模型：Pydantic V2 (用于强制类型校验)
+并发请求：使用 httpx 或 aiohttp（严禁使用阻塞型的 requests）
+交付格式：源码 + requirements.txt + Dockerfile

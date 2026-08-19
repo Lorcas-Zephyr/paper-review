@@ -1,0 +1,59 @@
+
+# ---------- Web 框架与服务器 ----------
+fastapi>=0.128.6
+uvicorn[standard]>=0.34.0
+python-multipart>=0.0.6
+aiofiles>=23.2.1
+httpx>=0.28.1
+
+# ---------- 数据验证与配置 ----------
+pydantic>=2.6.1
+python-dotenv>=1.2.1
+pyyaml>=6.0.3
+
+# ---------- 数据库与存储 ----------
+# PostgreSQL 驱动（选择其一即可，建议 asyncpg）
+asyncpg>=0.31.0
+# 或 psycopg（如需要同步连接）
+psycopg[binary,pool]>=3.0.0
+# 或 psycopg2（旧项目兼容）
+psycopg2-binary>=2.9.0
+
+# 向量数据库支持
+pgvector>=0.4.2
+sqlalchemy>=2.0.46
+
+# ---------- AI/机器学习 ----------
+# 大模型调用
+openai>=1.109.1
+google-genai>=1.2.0
+crewai>=0.1.0  # 来自文档2
+
+# 深度学习框架
+torch>=2.0.0
+transformers>=4.35.0
+sentence-transformers>=2.2.0
+
+# 传统机器学习
+scikit-learn>=1.3.0
+numpy>=1.26.4
+networkx>=3.0  # 来自文档5
+
+# ---------- 文档与图像处理 ----------
+# PDF 处理
+pymupdf>=1.23.22
+PyPDF2>=3.0.1
+
+# 图像处理
+opencv-python-headless>=4.9.0.80
+
+# 文本解析
+beautifulsoup4>=4.12.0
+reportlab>=4.4.10  # PDF 生成
+
+# ---------- 网络与工具 ----------
+requests>=2.31.0
+
+# ---------- 测试框架 ----------
+pytest>=9.0.2
+pytest-asyncio>=0.25.3

@@ -1,0 +1,220 @@
+{
+  "project": "Standardization_Auditor_Agent",
+  "purpose": "列出“完善项目所需的外部要素（数据/配置/样本/标注等）”与它们分别能完善项目的哪些能力。该清单不包含任何密钥或密码。",
+  "last_updated": "2026-03-17",
+  "current_state_observations": {
+    "db_tables_seen": [
+      "paper_sections",
+      "reviews",
+      "expert_comments",
+      "review_tasks",
+      "agent_rules",
+      "paper_paragraphs",
+      "papers",
+      "agent_audits",
+      "agent_audit_result",
+      "main_rules",
+      "codes",
+      "rule_judge",
+      "reviews"
+    ],
+    "db_data_counts_hint": {
+      "paper_sections": 998,
+      "reviews": 208,
+      "expert_comments": 8,
+      "review_tasks": 0,
+      "agent_rules": 0,
+      "agent_audits": 0
+    },
+    "rules_source_order": [
+      "DB(agent_rules) 覆盖同名规则",
+      "YAML(Standardization_Auditor_Agent/rules.yaml) 作为默认兜底"
+    ],
+    "regression_samples_manifest": "Standardization_Auditor_Agent/scripts/regression_samples.json 只记录 paper/ 下 PDF 路径（paper 文件夹已被 gitignore 忽略）"
+  },
+  "requirements": [
+    {
+      "id": "DATA_RULES_DYNAMIC",
+      "category": "data",
+      "name": "动态规则数据（agent_rules 表内容）",
+      "what_is_needed": [
+        "agent_rules.rule_id: 规则模块名（例如 typo_check / citation_check / heading_check / llm_scan / rag_eval / scoring 等）",
+        "agent_rules.content: YAML/JSON 字符串（与 rules.yaml 同结构）"
+      ],
+      "enables": [
+        "线上无需改代码即可调整规则阈值（如错别字红线、引用风格、标题层级、评分权重、LLM 扫描开关/分片参数）",
+        "A/B 对比不同规则版本对得分与问题分布的影响"
+      ],
+      "used_by": [
+        "core/rule_engine.py: RuleEngine.load_rules_from_db",
+        "core/semantic_check.py: update_rules() + llm_scan/rag_eval/scoring",
+        "core/layout_analysis.py: heading_check/figure_table_check/formula_check"
+      ],
+      "acceptance_criteria": [
+        "启动时 /rules 能看到 DB 中加载的规则键",
+        "修改 agent_rules 后无需重启即可 reload（若未来增加热更新接口）或重启即可生效"
+      ],
+      "notes": [
+        "当前 agent_rules 为空，因此规则完全来自 rules.yaml；这会限制“在线调参/热修复”能力。"
+      ]
+    },
+    {
+      "id": "DATA_EXPERT_KB",
+      "category": "data",
+      "name": "专家评语知识库（expert_comments 表的高质量内容与结构化字段）",
+      "what_is_needed": [
+        "expert_comments.text: 非空、可直接用于给用户看的评语/建议文本（尽量短句、可执行）",
+        "expert_comments.embedding: 与 SBERT 维度一致的 vector(768)",
+        "expert_comments.metric_id: 与项目规则/指标体系对齐的编号（用于按规则聚合与可解释性）",
+        "expert_comments.active/source/severity/weight 等字段：用于筛选与排序（可选但强烈建议）"
+      ],
+      "enables": [
+        "RAG 专家建议生成（让 comment/suggestion 更“像导师/规范条款”）",
+        "按 metric_id/类别做可解释的建议引用与溯源（例如“对应指标 X：……建议……”）"
+      ],
+      "used_by": [
+        "core/semantic_check.py: generate_expert_commentary() + _retrieve_expert_comments()"
+      ],
+      "acceptance_criteria": [
+        "RAG 检索能稳定返回 top_k 条非空文本",
+        "对相同 facts 的检索结果稳定且与论文片段相关",
+        "能按 active=true 过滤禁用条目（若后续启用）"
+      ],
+      "notes": [
+        "当前库里 expert_comments 有 8 条且 embedding 非空，但存在 text/metric_id 可能为空的情况；会导致检索命中后仍无法生成有效建议。"
+      ]
+    },
+    {
+      "id": "DATA_PAPER_CORPUS",
+      "category": "data",
+      "name": "论文 PDF 样本与可复现的回归样本集（paper/ 目录内容）",
+      "what_is_needed": [
+        "一组可公开/可分享的 PDF 样本（包含多栏、扫描件、公式多、图表多、参考文献复杂等边界场景）",
+        "与 scripts/regression_samples.json 对应的 PDF 实际文件路径可用",
+        "（可选）对每份 PDF 的元信息：paper_id、标题、年级/模板类型等"
+      ],
+      "enables": [
+        "布局分析（CV）规则的回归测试与误报/漏报定位",
+        "LLM 扫描分片策略、超时策略的调优",
+        "输出报告（Markdown/JSON）的端到端验证"
+      ],
+      "used_by": [
+        "main.py CLI --pdf 审计",
+        "scripts/run_regression.py"
+      ],
+      "acceptance_criteria": [
+        "run_regression 在固定样本上输出稳定（至少问题数量/类型分布稳定）",
+        "paper/ 中样本可按清单完整读取（当前 paper 目录不入库，不随 git 传播）"
+      ],
+      "notes": [
+        "如果需要在 CI/协作环境跑回归，建议维护一个“可公开样本子集”或使用对象存储下载脚本（不要直接提交 PDF 到仓库）。"
+      ]
+    },
+    {
+      "id": "DATA_GROUND_TRUTH_ISSUES",
+      "category": "data",
+      "name": "问题标注/真值集（用于评测审计质量）",
+      "what_is_needed": [
+        "对样本 PDF/章节片段的人工标注：issue_type、severity、证据位置（页码/段落/bbox）、期望建议",
+        "每个 issue_type 的定义与边界（例如引用不一致 vs 引用占位符）",
+        "评分对齐口径：不同问题权重与扣分规则"
+      ],
+      "enables": [
+        "量化评测：召回/精确、按类型 F1、按严重程度一致性",
+        "调参闭环：scoring 权重、layout/semantic 去重策略、LLM prompt 迭代",
+        "为后续训练/微调（如果需要）提供监督数据"
+      ],
+      "used_by": [
+        "tests/ 回归断言（未来可把真值集转为自动化测试）",
+        "scripts/run_regression.py（未来可输出对比报告）"
+      ],
+      "acceptance_criteria": [
+        "至少覆盖每个 issue_type 的正例/反例样本",
+        "标注一致性（同一规则不同标注者差异可量化）"
+      ]
+    },
+    {
+      "id": "DATA_INGEST_PIPELINE",
+      "category": "data+tooling",
+      "name": "从 PDF 入库到 paper_sections/paper_paragraphs/papers 的导入流程",
+      "what_is_needed": [
+        "一个可复现的导入脚本/流程：PDF -> 分段/章节 -> 写入 paper_sections.section_content + content_vector",
+        "paper_id 生成与 PDF 路径/标题绑定策略（避免重复导入）",
+        "向量生成模型与版本（与线上 SBERT 一致）"
+      ],
+      "enables": [
+        "调用 /audit 时只传 paper_id + chunk_id/section_id 即可，从 DB 回填内容审计",
+        "对海量论文做批处理审计/统计报表"
+      ],
+      "used_by": [
+        "main.py: payload.content 为空时从 DB 回填",
+        "core/semantic_check.py: RAG 检索（可扩展到论文段落向量检索）"
+      ],
+      "acceptance_criteria": [
+        "导入后 paper_sections.section_content 不为空的比例显著提升",
+        "content_vector 与 embedding 维度一致且可用 <=> 距离检索"
+      ]
+    },
+    {
+      "id": "CONFIG_LLM_KEYS",
+      "category": "config",
+      "name": "LLM Provider 的密钥与配额策略（不入库、不入仓库）",
+      "what_is_needed": [
+        "DEEPSEEK/QWEN/GOOGLE 之一的可用 API Key",
+        "明确的超时、并发、重试策略与预算（token/日额度）"
+      ],
+      "enables": [
+        "llm_scan（语义扫描）与 rag_eval（专家建议生成）真正生效",
+        "可控的线上成本与稳定性"
+      ],
+      "used_by": [
+        "core/llm_client.py",
+        "core/semantic_check.py: llm_scan/generate_expert_commentary"
+      ],
+      "acceptance_criteria": [
+        "LLM_PROVIDER=none 时系统仍可跑（仅布局+规则）",
+        "LLM_PROVIDER!=none 时能在超时内返回结构化 JSON"
+      ]
+    },
+    {
+      "id": "TOOLING_OBSERVABILITY",
+      "category": "tooling",
+      "name": "线上可观测性（日志/指标/追踪）所需规范与采样数据",
+      "what_is_needed": [
+        "统一的 issue_type 列表与枚举（避免同义词导致统计困难）",
+        "对关键阶段的耗时与失败原因采集（layout/llm/db）",
+        "一份脱敏的线上请求样本（request/response）用于回放"
+      ],
+      "enables": [
+        "定位误报/漏报与性能瓶颈",
+        "按 issue_type/学院/模板做质量看板"
+      ],
+      "used_by": [
+        "utils/logger.py",
+        "review_tasks/agent_audits 的落库字段（用于统计）"
+      ],
+      "acceptance_criteria": [
+        "能按 request_id 关联一次审计全链路日志",
+        "能统计 p50/p95 延迟与失败率"
+      ]
+    }
+  ],
+  "recommended_next_actions_without_writing_db": [
+    {
+      "action": "补齐 rag_eval 配置开关与专家评语过滤条件",
+      "why": "当前 rules.yaml 未显式配置 rag_eval，默认 enabled=true；但 expert_comments 的 text/metric_id 可能为空，容易导致建议为空或不相关。",
+      "how": [
+        "在 rules.yaml/agent_rules 中补充 rag_eval: { enabled: true/false, top_k: 5, require_metric_id: false, require_text: true }",
+        "在检索 SQL 中增加 text 非空过滤（不改 DB，仅改查询条件）"
+      ]
+    },
+    {
+      "action": "把回归样本从 paper/ 改为可下载的外部存储清单",
+      "why": "paper 被 gitignore，协作与 CI 不可复现。",
+      "how": [
+        "新增一个下载脚本从对象存储拉取 PDF（脚本本身可入库，但不提交 PDF）",
+        "把 regression_samples.json 扩展为包含 sha256 校验与下载 URL（URL 可为内网）"
+      ]
+    }
+  ]
+}

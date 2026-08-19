@@ -1,0 +1,34 @@
+{
+  "group_id": 6,
+  "group_name": "文献真实性组",
+  "paper_id": "test_paper_001",
+  "audit_results": [
+    {
+      "id": "item-6-001",
+      "point": "DOI有效性",
+      "score": 80,
+      "level": "Info",
+      "description": "符合规范：DOI有效性",
+      "evidence_quote": "原文第7.4节提到：'DOI有效性相关内容...'",
+      "location": {
+        "section": "5.4",
+        "line_start": 385
+      },
+      "suggestion": "继续保持"
+    },
+    {
+      "id": "item-6-002",
+      "point": "DOI有效性",
+      "score": 51,
+      "level": "Critical",
+      "description": "发现严重问题：DOI有效性",
+      "evidence_quote": "原文第4.4节提到：'DOI有效性相关内容...'",
+      "location": {
+        "section": "9.3",
+        "line_start": 46
+      },
+      "suggestion": "强烈建议重新审查DOI有效性"
+    }
+  ],
+  "timestamp": "2026-03-07T19:25:15.865839"
+}

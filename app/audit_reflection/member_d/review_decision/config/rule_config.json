@@ -1,0 +1,31 @@
+{
+  "weight_config": {
+    "problem_level": {
+      "Critical": 1.0,
+      "Major": 0.6,
+      "Minor": 0.2,
+      "None": 0.0
+    },
+    "impact_scope": {
+      "核心部分": 0.3,
+      "非核心部分": 0.1,
+      "无明确范围": 0.0
+    }
+  },
+  "review_trigger": {
+    "confidence_threshold": 0.7,
+    "conflict_group_threshold": 2,
+    "audit_type_threshold": {
+      "Logic_Audit": 0.7,
+      "Code_Audit": 0.65
+    }
+  },
+  "field_mapping": {
+    "audit_result": {
+      "old_audit_point": "audit_point",
+      "old_problem_level": "problem_level",
+      "old_confidence": "confidence",
+      "old_evidence": "evidence"
+    }
+  }
+}

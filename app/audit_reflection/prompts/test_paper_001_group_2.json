@@ -1,0 +1,34 @@
+{
+  "group_id": 2,
+  "group_name": "格式审计组",
+  "paper_id": "test_paper_001",
+  "audit_results": [
+    {
+      "id": "item-2-001",
+      "point": "图表位置",
+      "score": 73,
+      "level": "Warning",
+      "description": "建议改进：图表位置",
+      "evidence_quote": "原文第1.1节提到：'图表位置相关内容...'",
+      "location": {
+        "section": "1.2",
+        "line_start": 88
+      },
+      "suggestion": "建议补充图表位置"
+    },
+    {
+      "id": "item-2-002",
+      "point": "公式对齐",
+      "score": 92,
+      "level": "Info",
+      "description": "表现良好：公式对齐",
+      "evidence_quote": "原文第4.4节提到：'公式对齐相关内容...'",
+      "location": {
+        "section": "10.5",
+        "line_start": 11
+      },
+      "suggestion": "保持当前水平"
+    }
+  ],
+  "timestamp": "2026-03-07T19:25:15.865839"
+}

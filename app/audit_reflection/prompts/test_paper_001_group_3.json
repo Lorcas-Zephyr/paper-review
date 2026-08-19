@@ -1,0 +1,34 @@
+{
+  "group_id": 3,
+  "group_name": "逻辑审计组",
+  "paper_id": "test_paper_001",
+  "audit_results": [
+    {
+      "id": "item-3-001",
+      "point": "章节衔接",
+      "score": 92,
+      "level": "Info",
+      "description": "符合规范：章节衔接",
+      "evidence_quote": "原文第5.3节提到：'章节衔接相关内容...'",
+      "location": {
+        "section": "3.3",
+        "line_start": 405
+      },
+      "suggestion": "可以进一步提升章节衔接"
+    },
+    {
+      "id": "item-3-002",
+      "point": "论证逻辑严密性",
+      "score": 86,
+      "level": "Info",
+      "description": "基本合格：论证逻辑严密性",
+      "evidence_quote": "原文第4.4节提到：'论证逻辑严密性相关内容...'",
+      "location": {
+        "section": "6.2",
+        "line_start": 443
+      },
+      "suggestion": "继续保持"
+    }
+  ],
+  "timestamp": "2026-03-07T19:25:15.865839"
+}

@@ -1,0 +1,15 @@
+# Web 框架与服务器
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# 数据验证
+pydantic>=2.5.0
+
+# AI 模型调用
+openai>=1.0.0
+
+# 数据库连接
+psycopg[binary,pool]>=3.0.0
+
+# 标准库（以下通常已随 Python 安装，列出以供参考）
+# python>=3.8

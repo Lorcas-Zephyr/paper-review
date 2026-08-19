@@ -1,0 +1,17 @@
+node_modules/
+*.log
+.DS_Stores
+.env
+!.env.example
+.env/
+.venv/
+__pycache__/
+venv/
+.idea/
+.vscode/
+venv310/
+.pytest_cache/
+model_cache/
+uploads/
+outputs/
+reports/

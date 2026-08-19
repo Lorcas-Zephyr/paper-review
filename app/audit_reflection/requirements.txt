@@ -1,0 +1,26 @@
+# 反思评估组统一依赖
+# 整合了成员A、B、C、D的所有依赖
+
+# 核心框架
+pydantic>=2.12.5
+fastapi>=0.128.6
+uvicorn>=0.34.0
+
+# 数据库
+asyncpg>=0.31.0
+
+# 机器学习和NLP
+sentence-transformers
+scikit-learn
+numpy
+
+# HTTP客户端
+httpx>=0.28.1
+
+# 配置管理
+python-dotenv>=1.1.0
+pyyaml
+
+# 测试
+pytest>=9.0.2
+pytest-asyncio>=0.25.3

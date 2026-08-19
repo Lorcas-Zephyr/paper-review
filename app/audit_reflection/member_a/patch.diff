@@ -1,0 +1,92 @@
+*** Begin Patch
+*** Update File: src/conflict_resolver.py
+@@
+     def _normalize_agent_results(self, raw_results: Any) -> List[Dict[str, Any]]:
+@@
+-        normalized: List[Dict[str, Any]] = []
++        normalized: List[Dict[str, Any]] = []
+         for idx, item in enumerate(parsed):
+             if isinstance(item, str):
+                 try:
+                     item = json.loads(item)
+                 except json.JSONDecodeError:
+@@
+             if not isinstance(item, dict):
+                 logger.warning("Skip non-object agent result at index=%d", idx)
+                 continue
++
++            # Compat for list input where each element is new-format payload.
++            if "group_id" in item and "audit_results" in item:
++                normalized.extend(self._convert_new_format_to_old(item))
++                continue
+@@
+         return normalized
++
++    @staticmethod
++    def _is_negative_finding(result_data: Dict[str, Any]) -> bool:
++        """Return True when the finding is Warning/Critical and must include evidence."""
++        level = str(result_data.get("audit_level", "")).strip().lower()
++        return level in {"warning", "critical"}
++
++    def enforce_evidence_linking(
++            self,
++            agent_results: List[Dict[str, Any]],
++            evidence_validation: Dict[str, Any],
++            paper_context_available: bool,
++    ) -> Dict[str, Any]:
++        """Apply strict evidence-linking for negative findings.
++
++        Rule 1: Warning/Critical without evidence_quote -> remove.
++        Rule 2: Warning/Critical with invalid evidence_quote -> remove when paper context is available.
++        """
++        invalid_quote_set = set()
++        for invalid in evidence_validation.get("invalid_results", []) or []:
++            agent_name = invalid.get("agent_name", "")
++            clean_quote = invalid.get("clean_quote", "")
++            invalid_quote_set.add((agent_name, clean_quote))
++
++        filtered_results: List[Dict[str, Any]] = []
++        removed_results: List[Dict[str, Any]] = []
++
++        for item in agent_results:
++            result_data = item.get("result", {}) if isinstance(item.get("result"), dict) else {}
++            if not self._is_negative_finding(result_data):
++                filtered_results.append(item)
++                continue
++
++            agent_name = item.get("agent_info", {}).get("name", "unknown_agent")
++            evidence_quote = str(result_data.get("evidence_quote", "") or "").strip()
++            clean_quote = self._clean_evidence_quote(evidence_quote) if evidence_quote else ""
++
++            if not clean_quote:
++                removed_results.append(
++                    {
++                        "agent_name": agent_name,
++                        "reason": "negative finding missing evidence_quote",
++                        "comment": result_data.get("comment", ""),
++                    }
++                )
++                continue
++
++            if paper_context_available and (agent_name, clean_quote) in invalid_quote_set:
++                removed_results.append(
++                    {
++                        "agent_name": agent_name,
++                        "reason": "evidence_quote not found in paper content",
++                        "comment": result_data.get("comment", ""),
++                        "evidence_quote": clean_quote,
++                    }
++                )
++                continue
++
++            filtered_results.append(item)
++
++        return {
++            "filtered_agent_results": filtered_results,
++            "removed_results": removed_results,
++            "removed_count": len(removed_results),
++            "original_count": len(agent_results),
++            "remaining_count": len(filtered_results),
++            "paper_context_available": paper_context_available,
++        }
+*** End Patch

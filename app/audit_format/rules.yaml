@@ -1,0 +1,91 @@
+# 格式审计组规则配置文件 (rules.yaml)
+# 对应《分工明细》二、语义判定 - 阶段1：格式语义规则拆解与建模
+# 支持通过后台动态调整 (Admin Dashboard)
+
+# 1. 错别字红线规则
+typo_check:
+  max_typos_per_page_warning: 2    # 单页错别字红线
+  max_typos_total_warning: 10      # 全文错别字红线
+  critical_keywords:               # 关键术语 (遇到错写直接 Critical)
+    - "TensorFlow"
+    - "Pydantic"
+
+# 2. 术语一致性规则
+terminology_check:
+  # 定义标准术语及其允许的变体。如果不一致将触发 Warning。
+  # 格式: 标准术语: [允许的变体列表]
+  terms:
+    "深度学习": ["Deep Learning"]  # 允许中文或首字母大写英文
+    "卷积神经网络": ["CNN"]
+    "数据挖掘": ["Data Mining"]
+    "人工智能": ["AI", "Artificial Intelligence"]
+    "置信度": ["confidence"]
+
+  # 明确禁止的写法 (用于生成建议)
+  forbidden_variants:
+    "CNN": ["C.N.N."]
+  warn_on_mixed_allowed_forms: false
+
+# 3. 标点符号规则
+punctuation_check:
+  allow_mixed_punctuation: false   # 是否允许中英文标点混用 (默认 False)
+  check_citation_position: true    # 检查引用标注是否在标点符号内/外 (根据规范)
+  allow_proof_dot: true
+  allow_keywords_colon: true
+  skip_math_like: true
+
+# 4. 引用格式语义规则
+citation_check:
+  style: "IEEE"                    # 目标引用风格: "IEEE" (如 [1]) / "APA" (如 (Wang, 2023)) / "AUTO"
+  check_reference_matching: true   # 是否校验正文引用与参考文献列表的匹配性
+  allow_mixed_styles: false
+  enforce_style: true
+  style_inconsistent_severity: "Warning"
+  style_mismatch_severity: "Warning"
+
+# 5. 标题层级规则 (Heading Hierarchy)
+heading_check:
+  max_depth: 4                     # 最大允许标题层级 (例如: 1.1.1.1)
+  font_size_hierarchy: true        # 是否强制检查字体大小递减 (H1 > H2 > H3)
+  bold_requirement: [1, 2]         # 必须加粗的层级 (H1, H2)
+  continuity_check: true           # 是否检查标题编号连续性
+  continuity_severity: "Info"      # 开启连续性检查时的默认严重级别
+  column_threshold: 200.0          # 同栏判断阈值（用于降低多栏/页眉页脚误判）
+
+# 6. 图表位置规则 (Figure/Table Position)
+figure_table_check:
+  position_constraint: "top_or_bottom" # 图表位置约束: "top_or_bottom" (页首/页尾), "inline" (随文), "free"
+  caption_requirement: "bottom"        # 图题位置: "bottom" (图下), "top" (图上)
+  table_caption_requirement: "top"     # 表题位置: "top" (表上), "bottom" (表下)
+  resolution_threshold_dpi: 300        # 图片分辨率最低要求
+
+# 7. 公式对齐规则 (Formula Alignment)
+formula_check:
+  alignment: "centered"            # 公式对齐方式: "centered" (居中), "left" (左对齐)
+  numbering: "right"               # 编号位置: "right" (右侧), "left" (左侧)
+  font_consistency: true           # 是否检查公式字体与正文一致性 (或特定数学字体)
+  require_numbering: true          # 是否要求公式必须有编号
+  check_reference: true            # 是否检查公式编号在正文中被引用
+  missing_severity: "Warning"      # 公式未检测到编号的严重程度
+  unreferenced_ratio_threshold: 0.2
+  min_unreferenced_count: 3
+
+scoring:
+  critical_weight: 5.0
+  warning_weight: 2.0
+  info_weight: 0.3
+
+llm_scan:
+  enabled: true
+  # 单篇上限内尽量覆盖全文；max_chunks=0 表示按块大小切分后全部送 LLM（仍受 max_text_chars 限制）
+  max_text_chars: 120000
+  max_chunks: 0
+
+rag_eval:
+  enabled: true
+  # 专家评语 RAG：从正文抽取事实点的最大字符数（与 llm_scan 上限协调）
+  max_facts_chars: 80000
+  top_k: 5
+  require_text: true
+  require_metric_id: false
+  require_active: true

@@ -1,0 +1,20 @@
+# Core Framework & API
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.0.0
+
+# Async HTTP Client
+httpx>=0.25.0
+
+# Database & Vector
+psycopg2-binary>=2.9.0
+pgvector>=0.2.0
+
+# ML & Embeddings
+torch>=2.0.0
+transformers>=4.35.0
+numpy>=1.24.0
+sentence-transformers>=2.2.0  # 用于默认模型 'sentence-transformers/all-mpnet-base-v2'
+
+# Text Processing
+beautifulsoup4>=4.12.0

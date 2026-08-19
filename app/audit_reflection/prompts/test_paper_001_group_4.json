@@ -1,0 +1,34 @@
+{
+  "group_id": 4,
+  "group_name": "代码审计组",
+  "paper_id": "test_paper_001",
+  "audit_results": [
+    {
+      "id": "item-4-001",
+      "point": "README完整性",
+      "score": 82,
+      "level": "Info",
+      "description": "表现良好：README完整性",
+      "evidence_quote": "原文第2.2节提到：'README完整性相关内容...'",
+      "location": {
+        "section": "4.4",
+        "line_start": 47
+      },
+      "suggestion": "保持当前水平"
+    },
+    {
+      "id": "item-4-002",
+      "point": "依赖管理",
+      "score": 86,
+      "level": "Info",
+      "description": "符合规范：依赖管理",
+      "evidence_quote": "原文第5.3节提到：'依赖管理相关内容...'",
+      "location": {
+        "section": "2.2",
+        "line_start": 298
+      },
+      "suggestion": "保持当前水平"
+    }
+  ],
+  "timestamp": "2026-03-07T19:25:15.865839"
+}

@@ -1,0 +1,43 @@
+# 全局格式审计规则（CLI 默认加载路径）
+typo_check:
+  max_typos_per_page_warning: 3
+  max_typos_total_warning: 20
+  critical_keywords: []
+
+terminology_check:
+  terms:
+    "深度学习": ["Deep Learning"]
+    "卷积神经网络": ["CNN"]
+    "人工智能": ["AI", "Artificial Intelligence"]
+  forbidden_variants:
+    "Deep Learning": ["deep-learning", "deep learning"]
+    "CNN": ["C.N.N."]
+
+punctuation_check:
+  allow_mixed_punctuation: false
+  check_citation_position: true
+
+citation_check:
+  style: "IEEE"
+  check_reference_matching: true
+
+heading_check:
+  max_depth: 6
+  font_size_hierarchy: false
+  bold_requirement: []
+  continuity_check: true
+  continuity_severity: "Info"
+  column_threshold: 200.0
+
+figure_table_check:
+  position_constraint: "inline"
+  caption_requirement: "bottom"
+  table_caption_requirement: "top"
+  resolution_threshold_dpi: 200
+
+formula_check:
+  alignment: "centered"
+  numbering: "right"
+  font_consistency: false
+  require_numbering: true
+  check_reference: true

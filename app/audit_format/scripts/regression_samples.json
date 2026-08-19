@@ -1,0 +1,66 @@
+{
+  "root_hint": "repo_root/paper",
+  "description": "回归样本清单（仅记录路径，不复制PDF）。papers-reviews-mineru10篇处理/*/paper/hybrid_auto/paper_origin.pdf 为原论文。",
+  "samples": [
+    {
+      "id": "papers-mineru10-2018203215-paper_origin",
+      "kind": "paper_origin",
+      "path": "paper/papers-reviews-mineru10篇处理/2018203215/paper/hybrid_auto/paper_origin.pdf"
+    },
+    {
+      "id": "papers-mineru10-2018203216-paper_origin",
+      "kind": "paper_origin",
+      "path": "paper/papers-reviews-mineru10篇处理/2018203216/paper/hybrid_auto/paper_origin.pdf"
+    },
+    {
+      "id": "papers-mineru10-2018203217-paper_origin",
+      "kind": "paper_origin",
+      "path": "paper/papers-reviews-mineru10篇处理/2018203217/paper/hybrid_auto/paper_origin.pdf"
+    },
+    {
+      "id": "papers-mineru10-2018203218-paper_origin",
+      "kind": "paper_origin",
+      "path": "paper/papers-reviews-mineru10篇处理/2018203218/paper/hybrid_auto/paper_origin.pdf"
+    },
+    {
+      "id": "papers-mineru10-2018203219-paper_origin",
+      "kind": "paper_origin",
+      "path": "paper/papers-reviews-mineru10篇处理/2018203219/paper/hybrid_auto/paper_origin.pdf"
+    },
+    {
+      "id": "papers-mineru10-2019213486-paper_origin",
+      "kind": "paper_origin",
+      "path": "paper/papers-reviews-mineru10篇处理/2019213486/paper/hybrid_auto/paper_origin.pdf"
+    },
+    {
+      "id": "papers-mineru10-2019213487-paper_origin",
+      "kind": "paper_origin",
+      "path": "paper/papers-reviews-mineru10篇处理/2019213487/paper/hybrid_auto/paper_origin.pdf"
+    },
+    {
+      "id": "papers-mineru10-2020204274-paper_origin",
+      "kind": "paper_origin",
+      "path": "paper/papers-reviews-mineru10篇处理/2020204274/paper/hybrid_auto/paper_origin.pdf"
+    },
+    {
+      "id": "papers-mineru10-2020204275-paper_origin",
+      "kind": "paper_origin",
+      "path": "paper/papers-reviews-mineru10篇处理/2020204275/paper/hybrid_auto/paper_origin.pdf"
+    },
+    {
+      "id": "papers-mineru10-2021203898-paper_origin",
+      "kind": "paper_origin",
+      "path": "paper/papers-reviews-mineru10篇处理/2021203898/paper/hybrid_auto/paper_origin.pdf"
+    },
+    {
+      "id": "paper-top-llm-decode",
+      "kind": "paper_misc",
+      "path": "paper/面向代码生成的大语言模型解码策略研究_朱煜琪.pdf"
+    },
+    {
+      "id": "paper-top-concurrency",
+      "kind": "paper_misc",
+      "path": "paper/基于插值和偏序约简的并发程序验证理论与方法_苏杰.pdf"
+    }
+  ]
+}

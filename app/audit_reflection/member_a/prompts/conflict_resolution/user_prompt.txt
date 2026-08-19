@@ -1,0 +1,47 @@
+论文标题：{paper_title}
+
+论文关键上下文：
+{paper_context}
+
+检测到以下评审冲突：
+{conflicts}
+
+参与评审的Agent: {agent_names}
+
+请分析这些冲突，提供客观的最终结论。对于每个冲突：
+
+1. 冲突分析：
+   - 冲突类型（直接矛盾/上下文依赖/度量标准不同/评估范围不一致）
+   - 根本原因（为什么会出现不同意见）
+   - 证据强度（0-1，基于论文内容的支持程度）
+
+2. 解决方案：
+   - 最终评语（整合双方观点，客观表述）
+   - 具体改进建议（可操作、学术严谨）
+   - 最终严重级别（Info/Warning/Critical）
+   - 是否需要人工复核（布尔值）
+
+3. 输出要求：
+   - 保持学术严谨性，避免绝对化表述
+   - 引用论文具体内容作为依据
+   - 如果证据不足，承认局限性并建议人工复核
+   - 用中文输出，保持专业学术语言风格
+
+请以严格的JSON格式输出，包含以下字段：
+{
+  "conflicts_resolved": true,
+  "confidence_score": 0.85,
+  "resolved_issues": [
+    {
+      "agent1_name": "代码审计组",
+      "agent2_name": "实验数据组",
+      "conflict_type": "direct_contradiction",
+      "root_cause": "评估维度不同：代码审计关注实现效率，实验数据关注实际性能",
+      "evidence_strength": 0.8,
+      "resolved_comment": "算法在理论上是高效的，但在实际数据集上表现不佳，可能存在实现与理论不符的情况",
+      "resolved_suggestion": "建议检查代码实现是否与理论算法一致，并在不同规模数据集上进行性能测试对比",
+      "final_level": "Warning",
+      "needs_human_review": false
+    }
+  ]
+}

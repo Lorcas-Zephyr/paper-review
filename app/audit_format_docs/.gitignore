@@ -1,0 +1,4 @@
+**/.env
+**/.env.*
+**/set_env.local.ps1
+/paper/

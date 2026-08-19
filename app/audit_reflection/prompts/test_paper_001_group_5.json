@@ -1,0 +1,34 @@
+{
+  "group_id": 5,
+  "group_name": "实验数据组",
+  "paper_id": "test_paper_001",
+  "audit_results": [
+    {
+      "id": "item-5-001",
+      "point": "样本量充足性",
+      "score": 65,
+      "level": "Warning",
+      "description": "存在问题：样本量充足性",
+      "evidence_quote": "原文第3.4节提到：'样本量充足性相关内容...'",
+      "location": {
+        "section": "3.3",
+        "line_start": 498
+      },
+      "suggestion": "建议优化样本量充足性"
+    },
+    {
+      "id": "item-5-002",
+      "point": "图表数据一致性",
+      "score": 81,
+      "level": "Info",
+      "description": "基本合格：图表数据一致性",
+      "evidence_quote": "原文第8.4节提到：'图表数据一致性相关内容...'",
+      "location": {
+        "section": "6.3",
+        "line_start": 118
+      },
+      "suggestion": "可以进一步提升图表数据一致性"
+    }
+  ],
+  "timestamp": "2026-03-07T19:25:15.865839"
+}
