@@ -4,6 +4,8 @@ import base64
 import math
 import re
 import json
+import sys
+from pathlib import Path
 from config import LLM_TIMEOUT_SEC
 from .layout_zones import is_reference_title
 from .llm_client import LLMClient
@@ -13,6 +15,11 @@ from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
+APP_ROOT = Path(__file__).resolve().parents[2]
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
+from local_model_config import load_sentence_transformer
+
 _sbert_model = None
 
 
@@ -20,11 +27,10 @@ def _get_sbert_model():
     global _sbert_model
     if _sbert_model is None:
         try:
-            from sentence_transformers import SentenceTransformer
             from config import SBERT_MODEL_NAME, SBERT_DEVICE
 
             device = SBERT_DEVICE or None
-            _sbert_model = SentenceTransformer(SBERT_MODEL_NAME, device=device)
+            _sbert_model = load_sentence_transformer(SBERT_MODEL_NAME, device=device)
         except Exception as e:
             logger.warning(f"SBERT model unavailable, will use fallback embedding: {e}")
             _sbert_model = None

@@ -29,11 +29,11 @@ pgvector>=0.4.2
 # ---------- AI/机器学习 ----------
 # 大模型调用
 openai>=1.109.1
-openai>=1.109.1
 google-genai>=1.2.0
 crewai>=0.1.0  # 来自文档2
+litellm>=1.81.9
 
-# 深度学习框架
+# 深度学习框架（RTX 机器使用 requirements-cuda.txt 安装匹配版本）
 torch>=2.0.0
 transformers>=4.35.0
 sentence-transformers>=2.2.0

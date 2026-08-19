@@ -52,7 +52,7 @@
 
 ### 配置密钥
 
-复制 `.env.example` 为 `app/.env`，在这一处填写 `DEEPSEEK_API_KEY`；模型、Base URL、超时和 JSON 模式也统一从该文件读取。不要把真实密钥提交到仓库。
+复制 `.env.example` 为 `app/.env`，在这一处填写 `DEEPSEEK_API_KEY`；模型、Base URL、超时和 JSON 模式也统一从该文件读取。执行 `scripts/download_local_models.py` 后，开源模型会从 `app/model_cache` 离线加载；不要把真实密钥或模型文件提交到仓库。
 
 ### 一键启动与停止
 

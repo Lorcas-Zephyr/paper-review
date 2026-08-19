@@ -80,6 +80,12 @@ class DeepSeekConfig:
             "configured": self.configured,
         }
 
+    def request_options(self) -> Dict[str, Any]:
+        """Return DeepSeek-specific options for the current API generation."""
+        return {
+            "thinking": {"type": "enabled" if self.thinking_enabled else "disabled"}
+        }
+
 
 def get_deepseek_config(*, require_key: bool = False) -> DeepSeekConfig:
     config = DeepSeekConfig(

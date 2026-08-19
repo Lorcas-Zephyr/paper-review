@@ -5,6 +5,7 @@
 import os
 import json
 import asyncio
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List
@@ -16,6 +17,13 @@ try:
     load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 except ImportError:
     pass
+
+APP_ROOT = Path(__file__).resolve().parents[1]
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
+from local_model_config import MINERU_CONFIG_FILE, enable_offline_model_mode
+
+enable_offline_model_mode()
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Body
 from fastapi.middleware.cors import CORSMiddleware
@@ -49,9 +57,7 @@ MINERU_BACKEND = os.getenv("MINERU_BACKEND", "pipeline")
 MINERU_PARSE_METHOD = os.getenv("MINERU_PARSE_METHOD", "auto")
 MINERU_FORMULA_ENABLE = os.getenv("MINERU_FORMULA_ENABLE", "true").lower() == "true"
 MINERU_TABLE_ENABLE = os.getenv("MINERU_TABLE_ENABLE", "true").lower() == "true"
-MINERU_MODEL_SOURCE = os.getenv("MINERU_MODEL_SOURCE", "auto")
-if MINERU_MODEL_SOURCE and MINERU_MODEL_SOURCE != "auto":
-    os.environ.setdefault("MINERU_MODEL_SOURCE", MINERU_MODEL_SOURCE)
+MINERU_MODEL_SOURCE = os.getenv("MINERU_MODEL_SOURCE", "local")
 
 try:
     from mineru.cli.common import do_parse as _mineru_do_parse
@@ -290,6 +296,7 @@ async def root():
             "backend": MINERU_BACKEND,
             "parse_method": MINERU_PARSE_METHOD,
             "model_source": MINERU_MODEL_SOURCE,
+            "config_file": str(MINERU_CONFIG_FILE),
         }
     }
 
@@ -303,6 +310,8 @@ async def health_check():
             "available": MINERU_AVAILABLE,
             "backend": MINERU_BACKEND,
             "parse_method": MINERU_PARSE_METHOD,
+            "model_source": MINERU_MODEL_SOURCE,
+            "config_file": str(MINERU_CONFIG_FILE),
             "import_error": MINERU_IMPORT_ERROR,
         },
     }

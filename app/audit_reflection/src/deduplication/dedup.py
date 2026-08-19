@@ -3,6 +3,10 @@ from typing import Dict, List, Tuple
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+APP_ROOT = Path(__file__).resolve().parents[3]
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
+from local_model_config import MODEL_IDS, load_sentence_transformer
 
 from src.common.config_b import DedupConfig
 from src.common.models import DedupCluster, DedupItem, DedupResult
@@ -16,9 +20,7 @@ class Deduplicator:
     def _embed(self, texts: List[str]) -> List[List[float]]:
         # 向量化：优先 Sentence-Transformers，失败则降级为 TF-IDF 或哈希。
         try:
-            from sentence_transformers import SentenceTransformer  # type: ignore
-
-            model = SentenceTransformer("all-MiniLM-L6-v2")
+            model = load_sentence_transformer(MODEL_IDS["reflection_embedding"])
             vectors = model.encode(texts, normalize_embeddings=True)
             return [v.tolist() for v in vectors]
         except Exception:

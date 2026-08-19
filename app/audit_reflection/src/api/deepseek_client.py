@@ -88,6 +88,7 @@ class DeepSeekClient:
             "messages": messages,
             "temperature": DEEPSEEK_CONFIG.temperature if temperature is None else temperature,
             "max_tokens": DEEPSEEK_CONFIG.max_tokens if max_tokens is None else max_tokens,
+            **DEEPSEEK_CONFIG.request_options(),
             **kwargs
         }
 

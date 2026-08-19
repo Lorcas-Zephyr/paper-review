@@ -3,6 +3,10 @@ from typing import List, Optional, Tuple
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+APP_ROOT = Path(__file__).resolve().parents[3]
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
+from local_model_config import MODEL_IDS, load_sentence_transformer
 
 from src.common.config_b import EvidenceConfig
 from src.common.models import EvidenceItem, EvidenceSpan, EvidenceValidationResult, Section
@@ -25,9 +29,7 @@ class EvidenceValidator:
         if self._embedder is not None:
             return
         try:
-            from sentence_transformers import SentenceTransformer  # type: ignore
-
-            self._embedder = SentenceTransformer("all-MiniLM-L6-v2")
+            self._embedder = load_sentence_transformer(MODEL_IDS["reflection_embedding"])
             return
         except Exception:
             self._embedder = None

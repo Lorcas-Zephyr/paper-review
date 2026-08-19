@@ -1,5 +1,6 @@
 # paper_processor.py (修改版：删去本地模型加载支持)
 import os
+import sys
 from pathlib import Path
 
 try:
@@ -9,7 +10,12 @@ try:
 except ImportError:
     pass
 
-os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'  # 设置Hugging Face国内镜像
+APP_ROOT = Path(__file__).resolve().parents[1]
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
+from local_model_config import HF_HUB_DIR, MODEL_IDS, enable_offline_model_mode, require_local_model
+
+enable_offline_model_mode()
 import json
 import re
 import uuid
@@ -36,7 +42,7 @@ def get_db_connection():
 class BertVectorGenerator:
     """基于BERT的向量生成器"""
 
-    def __init__(self, model_name: str = "sentence-transformers/all-mpnet-base-v2"):
+    def __init__(self, model_name: str = MODEL_IDS["paper_embedding"]):
         """
         初始化BERT向量生成器
 
@@ -48,15 +54,21 @@ class BertVectorGenerator:
         self.model_name = model_name
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"使用设备: {self.device}")
-        print(f"模型下载镜像: {os.environ.get('HF_ENDPOINT')}")
-
-        # 从Hugging Face加载分词器和模型（将通过上述镜像地址下载）
-        print(f"从镜像站加载模型: {model_name}")
+        print(f"从本地缓存加载模型: {model_name}")
         try:
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-            self.model = AutoModel.from_pretrained(model_name)
+            local_model_path = require_local_model(model_name)
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                local_model_path,
+                cache_dir=HF_HUB_DIR,
+                local_files_only=True,
+            )
+            self.model = AutoModel.from_pretrained(
+                local_model_path,
+                cache_dir=HF_HUB_DIR,
+                local_files_only=True,
+            )
         except Exception as e:
-            raise RuntimeError(f"模型加载失败: {e}\n提示：当前使用镜像地址 {os.environ.get('HF_ENDPOINT')}")
+            raise RuntimeError(f"本地模型加载失败: {e}")
 
 
         self.model.to(self.device)
@@ -188,7 +200,7 @@ def truncate_text_for_bert(text, max_chars=3000):
 class PaperProcessor:
     """论文处理器，集成到调度器中"""
 
-    def __init__(self, model_name: str = "sentence-transformers/all-mpnet-base-v2"):
+    def __init__(self, model_name: str = MODEL_IDS["paper_embedding"]):
         """
         初始化论文处理器（延迟加载 BERT 与数据库连接，避免阻塞调度器进程启动与 /health）
         """

@@ -15,6 +15,11 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR" || exit 1
 export PYTHONUNBUFFERED=1
+export PYTHONPATH="$SCRIPT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+export HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"
+export TRANSFORMERS_OFFLINE="${TRANSFORMERS_OFFLINE:-1}"
+export MINERU_MODEL_SOURCE="${MINERU_MODEL_SOURCE:-local}"
+export MINERU_DEVICE_MODE="${MINERU_DEVICE_MODE:-cuda}"
 
 if [ -f "$SCRIPT_DIR/.env" ]; then
   set -a

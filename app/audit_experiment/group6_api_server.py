@@ -539,6 +539,7 @@ class ExperimentDataAgent:
                 ],
                 temperature=DEEPSEEK_CONFIG.temperature,
                 max_tokens=DEEPSEEK_CONFIG.max_tokens,
+                extra_body=DEEPSEEK_CONFIG.request_options(),
                 **({"response_format": {"type": "json_object"}} if DEEPSEEK_CONFIG.json_mode else {})
             )
             raw_text = response.choices[0].message.content

@@ -35,6 +35,7 @@ QWEN_MODEL_NAME = os.getenv("QWEN_MODEL_NAME", "qwen-plus")
 DEEPSEEK_API_KEY = DEEPSEEK_CONFIG.api_key
 DEEPSEEK_BASE_URL = DEEPSEEK_CONFIG.base_url
 DEEPSEEK_MODEL_NAME = DEEPSEEK_CONFIG.model
+DEEPSEEK_THINKING_ENABLED = DEEPSEEK_CONFIG.thinking_enabled
 
 # LLM Provider: "gemini", "qwen", "deepseek" or "mock"
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "mock")

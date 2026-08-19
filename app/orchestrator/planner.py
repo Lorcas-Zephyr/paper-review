@@ -336,8 +336,7 @@ class AIPlanner:
         }
         if llm.json_mode:
             payload["response_format"] = {"type": "json_object"}
-        if llm.thinking_enabled:
-            payload["thinking"] = {"type": "enabled"}
+        payload.update(llm.request_options())
         async with httpx.AsyncClient(timeout=llm.timeout_seconds, trust_env=False) as client:
             response = await client.post(
                 llm.chat_completions_url,

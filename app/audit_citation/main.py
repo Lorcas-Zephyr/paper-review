@@ -299,7 +299,12 @@ async def _llm_citation_relevance(citing_sentence: str, scholar_title: str, scho
             r = await client.post(
                 url,
                 headers=headers,
-                json={"model": _choose_llm_model(), "messages": [{"role": "user", "content": prompt}], "max_tokens": 150},
+                json={
+                    "model": _choose_llm_model(),
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 150,
+                    **DEEPSEEK_CONFIG.request_options(),
+                },
             )
             if r.status_code != 200:
                 return True, ""

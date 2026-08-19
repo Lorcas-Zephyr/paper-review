@@ -1,13 +1,20 @@
-from sentence_transformers import SentenceTransformer, util
+from sentence_transformers import util
 from typing import List, Dict
 import torch
+import sys
+from pathlib import Path
 from src.config import settings
+
+APP_ROOT = Path(__file__).resolve().parents[3]
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
+from local_model_config import MODEL_IDS, load_sentence_transformer
 
 class EvidenceValidator:
     def __init__(self):
         self.model = None
         if settings.evidence.enable_semantic:
-            self.model = SentenceTransformer(settings.evidence.model_name)
+            self.model = load_sentence_transformer(MODEL_IDS["reflection_embedding"])
 
     async def validate(self, quote: str, paper_sections: List[Dict]) -> ValidationReport:
         # 精确匹配

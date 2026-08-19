@@ -43,14 +43,15 @@
 ```bash
 cp app/.env.example app/.env
 cd app
-pip install -r requirements.txt
+pip install -r requirements-cuda.txt  # RTX/CUDA 机器；CPU 机器可用 requirements.txt
+python scripts/download_local_models.py
 cd website && npm ci && cd ..
 bash start.sh
 ```
 
 按实际环境填写 `app/.env`，不要提交密钥。启动脚本默认提供：前端 `3002`、上传 `5000`、转换 `8002`、文献 `8005`、实验 `8006`、格式 `8007`、逻辑 `8008`、反思 `8009`、调度器 `7860`。
 
-MinerU 首次使用前需要准备本地模型：`python -m mineru.cli.models_download -s modelscope -m pipeline`。模型下载完成后，PDF 转换运行在本机，不再请求远程解析服务。
+首次部署需要下载开源模型：`python scripts/download_local_models.py`。脚本从 ModelScope 下载论文向量、格式/反思向量、逻辑 NLI 和 MinerU pipeline 到 `app/model_cache`，之后所有开源模型严格从本地加载并启用离线模式。DeepSeek 仍通过 API 调用，不下载权重。
 
 ## 项目边界
 

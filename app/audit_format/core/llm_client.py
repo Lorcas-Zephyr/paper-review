@@ -9,7 +9,7 @@ from config import (
     GEMINI_MODEL_NAME, GOOGLE_API_KEY,
     QWEN_API_KEY, QWEN_BASE_URL, QWEN_MODEL_NAME,
     DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL_NAME,
-    LLM_PROVIDER, LLM_TIMEOUT_SEC
+    DEEPSEEK_THINKING_ENABLED, LLM_PROVIDER, LLM_TIMEOUT_SEC
 )
 from core.prompts import SYSTEM_PROMPT_MAIN as SYSTEM_PROMPT
 
@@ -191,6 +191,7 @@ class LLMClient:
                     temperature=temperature,
                     max_tokens=max_tokens,
                     timeout=LLM_TIMEOUT_SEC,
+                    extra_body={"thinking": {"type": "enabled" if DEEPSEEK_THINKING_ENABLED else "disabled"}},
                 )
                 return response.choices[0].message.content or ""
             except Exception as e:
@@ -271,6 +272,7 @@ class LLMClient:
                 temperature=temperature,
                 max_tokens=4096, # DeepSeek V3 supports longer context
                 timeout=LLM_TIMEOUT_SEC,
+                extra_body={"thinking": {"type": "enabled" if DEEPSEEK_THINKING_ENABLED else "disabled"}},
             )
             return response.choices[0].message.content
         except Exception as e:

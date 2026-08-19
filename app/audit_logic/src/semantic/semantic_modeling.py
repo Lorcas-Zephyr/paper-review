@@ -1,9 +1,13 @@
 import os
-# 设置HuggingFace镜像源
-os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
-os.environ['TRANSFORMERS_OFFLINE'] = '0'
-print(f"HF_ENDPOINT set to: {os.environ.get('HF_ENDPOINT')}")
-print(f"TRANSFORMERS_OFFLINE set to: {os.environ.get('TRANSFORMERS_OFFLINE')}")
+import sys
+from pathlib import Path
+
+APP_ROOT = Path(__file__).resolve().parents[3]
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
+from local_model_config import HF_HUB_DIR, MODEL_IDS, enable_offline_model_mode, require_local_model
+
+enable_offline_model_mode()
 
 import re, networkx as nx
 from typing import List, Dict, Any, Optional
@@ -81,35 +85,35 @@ class SemanticModeling:
 
         # 加载预训练模型
         try:
-            project_cache_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "model_cache")
-            os.makedirs(project_cache_dir, exist_ok=True)
+            project_cache_dir = str(HF_HUB_DIR)
             print(f"Using project cache directory: {project_cache_dir}")
             print(f"Cache directory exists: {os.path.exists(project_cache_dir)}")
             print(f"Cache directory contents: {os.listdir(project_cache_dir) if os.path.exists(project_cache_dir) else 'None'}")
 
-            model_name = "cross-encoder/nli-deberta-v3-base"
+            model_name = MODEL_IDS["logic_nli"]
+            local_model_path = require_local_model(model_name)
             print(f"Trying to load best NLI model: {model_name}")
 
             # 尝试从缓存加载tokenizer
             try:
                 print("Trying to load tokenizer from cache...")
-                self.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=project_cache_dir, local_files_only=True)
+                self.tokenizer = AutoTokenizer.from_pretrained(local_model_path, local_files_only=True)
                 print("Tokenizer loaded from cache successfully")
             except Exception as e:
                 print(f"Failed to load tokenizer from cache: {e}")
-                print("Trying to load tokenizer with mirror...")
-                self.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=project_cache_dir)
+                print("Retrying tokenizer from local cache...")
+                self.tokenizer = AutoTokenizer.from_pretrained(local_model_path, local_files_only=True)
                 print("Tokenizer loaded successfully")
 
             # 尝试从缓存加载模型
             try:
                 print("Trying to load model from cache...")
-                self.nli_model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=3, cache_dir=project_cache_dir, local_files_only=True)
+                self.nli_model = AutoModelForSequenceClassification.from_pretrained(local_model_path, num_labels=3, local_files_only=True)
                 print("Model loaded from cache successfully")
             except Exception as e:
                 print(f"Failed to load model from cache: {e}")
-                print("Trying to load model with mirror...")
-                self.nli_model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=3, cache_dir=project_cache_dir)
+                print("Retrying model from local cache...")
+                self.nli_model = AutoModelForSequenceClassification.from_pretrained(local_model_path, num_labels=3, local_files_only=True)
                 print("Model loaded successfully")
 
             # 将模型移至指定设备
@@ -126,11 +130,12 @@ class SemanticModeling:
             print("Trying fallback model...")
             # 尝试备选模型
             try:
-                model_name = "hfl/chinese-roberta-wwm-ext"
+                model_name = MODEL_IDS["logic_fallback"]
+                local_model_path = require_local_model(model_name)
                 print(f"Trying to load fallback model: {model_name}")
-                self.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=project_cache_dir)
+                self.tokenizer = AutoTokenizer.from_pretrained(local_model_path, local_files_only=True)
                 print("Fallback tokenizer loaded successfully")
-                self.nli_model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=3, cache_dir=project_cache_dir, ignore_mismatched_sizes=True)
+                self.nli_model = AutoModelForSequenceClassification.from_pretrained(local_model_path, num_labels=3, local_files_only=True, ignore_mismatched_sizes=True)
                 print("Fallback model loaded successfully")
                 self.nli_model.to(self.device)
                 if self.device.type == "cuda":

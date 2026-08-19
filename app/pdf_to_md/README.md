@@ -30,9 +30,9 @@ python main.py
 模型可提前下载到本机缓存（示例使用 ModelScope；运行时仍是本地推理）：
 
 ```bash
-python -m mineru.cli.models_download -s modelscope -m pipeline
+python ../scripts/download_local_models.py --only-mineru
 ```
 
-如果目标机已经准备好模型目录，可将 `MINERU_MODEL_SOURCE=local` 写入 `app/.env`。
+脚本会生成 `app/model_cache/mineru.json`，并将 MinerU 的模型源设为 `local`；运行时不会访问模型仓库。
 
 与 `pdf_api`、调度器、数据库相互独立；不依赖 pgvector。

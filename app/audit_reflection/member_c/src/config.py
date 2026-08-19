@@ -23,7 +23,7 @@ class EvidenceValidationConfig(BaseModel):
     exact_match: bool = True
     semantic_threshold: float = 0.85
     enable_semantic: bool = True
-    model_name: str = "all-MiniLM-L6-v2"  # sentence-transformers 模型
+    model_name: str = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"  # 本地 sentence-transformers 模型
 
 class DialogueConfig(BaseModel):
     quality_threshold: float = 4.0
