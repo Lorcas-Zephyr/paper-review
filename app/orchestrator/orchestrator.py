@@ -275,7 +275,7 @@ class Orchestrator:
                 request_body = {
                     "request_id": request_id,
                     "paper_id": paper_id,  # 包含paper_id
-                    "model_preference": "deepseek-chat",
+                    "model_preference": "deepseek-v4-flash",
                     "audit_scope": ["experiment", "result"],
                     "enable_rules": enable_rules,
                     # 与库内全文一致，优先用调度器当前 MD 直接评阅（避免仅 paper_id 时库未同步）

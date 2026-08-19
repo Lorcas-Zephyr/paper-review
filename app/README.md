@@ -52,7 +52,7 @@
 
 ### 配置密钥
 
-在各相关目录配置 `.env`，至少包含 DeepSeek 相关变量，见 `ENV_API_KEYS.md`。
+复制 `.env.example` 为 `app/.env`，在这一处填写 `DEEPSEEK_API_KEY`；模型、Base URL、超时和 JSON 模式也统一从该文件读取。不要把真实密钥提交到仓库。
 
 ### 一键启动与停止
 

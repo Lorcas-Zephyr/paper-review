@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import sys
 import time
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -13,14 +14,20 @@ logger = logging.getLogger(__name__)
 
 # 项目根目录（用于定位prompt文件）
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+APP_ROOT = Path(__file__).resolve().parents[3]
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
+from llm_config import get_deepseek_config
+
+DEEPSEEK_CONFIG = get_deepseek_config()
 
 
 class LLMClient:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or {}
-        self.model = self.config.get("model", os.getenv("LLM_MODEL", "deepseek/deepseek-chat"))
-        self.api_key = self.config.get("api_key", os.getenv("LLM_API_KEY"))
-        self.base_url = self.config.get("base_url", os.getenv("LLM_BASE_URL"))
+        self.model = self.config.get("model", f"deepseek/{DEEPSEEK_CONFIG.model}")
+        self.api_key = self.config.get("api_key", DEEPSEEK_CONFIG.api_key)
+        self.base_url = self.config.get("base_url", DEEPSEEK_CONFIG.base_url)
 
         # 设置LiteLLM路由
         if self.base_url:
@@ -69,9 +76,9 @@ class LLMClient:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=request.config.get("temperature", 0.3),
-                max_tokens=request.config.get("max_tokens", 1000),
-                response_format={"type": "json_object"},
+                temperature=request.config.get("temperature", DEEPSEEK_CONFIG.temperature),
+                max_tokens=request.config.get("max_tokens", DEEPSEEK_CONFIG.max_tokens),
+                **({"response_format": {"type": "json_object"}} if DEEPSEEK_CONFIG.json_mode else {}),
                 api_key=self.api_key,
                 base_url=self.base_url,
             )

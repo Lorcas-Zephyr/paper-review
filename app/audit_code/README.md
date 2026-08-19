@@ -20,7 +20,7 @@
 ```env
 DEEPSEEK_API_KEY=your_api_key_here
 DEEPSEEK_BASE_URL=https://api.deepseek.com
-MODEL_NAME=deepseek-chat
+DEEPSEEK_MODEL=deepseek-v4-flash
 ```
 
 安装依赖后按本目录入口脚本启动；具体命令以仓库内 `main` 或启动说明为准。

@@ -86,7 +86,7 @@ class CodeReviewResponse(BaseModel):
 class Group6AuditRequest(BaseModel):
     request_id: str
     paper_id: str
-    model_preference: str = "deepseek-chat"
+    model_preference: str = "deepseek-v4-flash"
     audit_scope: List[str] = ["experiment", "result"]
 
 class AuditResultItem(BaseModel):

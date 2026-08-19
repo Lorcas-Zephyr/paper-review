@@ -4,21 +4,23 @@
 """
 import os
 import json
-import zipfile
-import tempfile
+import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 import shutil
 import traceback
 
-import requests
-import fitz
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+except ImportError:
+    pass
+
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Body
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse
 import uvicorn
-from pydantic import BaseModel
 
 # 创建FastAPI应用
 app = FastAPI(
@@ -42,179 +44,72 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR = Path("outputs")
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-# PDF解析API配置
-PDF_PARSE_API_URL = os.getenv("PDF_PARSE_API_URL", "http://127.0.0.1:8000/file_parse")
+# Local MinerU configuration
+MINERU_BACKEND = os.getenv("MINERU_BACKEND", "pipeline")
+MINERU_PARSE_METHOD = os.getenv("MINERU_PARSE_METHOD", "auto")
+MINERU_FORMULA_ENABLE = os.getenv("MINERU_FORMULA_ENABLE", "true").lower() == "true"
+MINERU_TABLE_ENABLE = os.getenv("MINERU_TABLE_ENABLE", "true").lower() == "true"
+MINERU_MODEL_SOURCE = os.getenv("MINERU_MODEL_SOURCE", "auto")
+if MINERU_MODEL_SOURCE and MINERU_MODEL_SOURCE != "auto":
+    os.environ.setdefault("MINERU_MODEL_SOURCE", MINERU_MODEL_SOURCE)
 
-class PDFParseRequest(BaseModel):
-    """PDF解析请求模型"""
-    # lang_list: List[str] = ["ch"]
-    backend: str = "hybrid-auto-engine"
-    parse_method: str = "auto"
-    formula_enable: bool = True
-    table_enable: bool = True
-    return_md: bool = True
-    return_middle_json: bool = False
-    return_model_output: bool = False
-    return_content_list: bool = True
-    return_images: bool = False
-    response_format_zip: bool = True
-    start_page_id: Optional[int] = None
-    end_page_id: Optional[int] = None
-    server_url: Optional[str] = None
+try:
+    from mineru.cli.common import do_parse as _mineru_do_parse
+    MINERU_AVAILABLE = True
+    MINERU_IMPORT_ERROR = None
+except Exception as _exc:  # Optional local model dependency.
+    _mineru_do_parse = None
+    MINERU_AVAILABLE = False
+    MINERU_IMPORT_ERROR = str(_exc)
 
-async def call_pdf_parse_api(file_path: str, config: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    调用PDF解析API
+def _run_local_mineru(file_path: str, output_dir: Path, config: Dict[str, Any]) -> None:
+    """Run MinerU in-process.  This function is called from a worker thread."""
+    if _mineru_do_parse is None:
+        raise RuntimeError(
+            "MinerU local runtime is unavailable. Install mineru[core] and its model dependencies. "
+            f"Import error: {MINERU_IMPORT_ERROR}"
+        )
 
-    Args:
-        file_path: 本地PDF文件路径
-        config: API配置参数
+    with open(file_path, "rb") as pdf_file:
+        _mineru_do_parse(
+            output_dir=str(output_dir),
+            pdf_file_names=[Path(file_path).name],
+            pdf_bytes_list=[pdf_file.read()],
+            p_lang_list=config.get("lang_list", ["ch"]),
+            backend=config.get("backend", MINERU_BACKEND),
+            parse_method=config.get("parse_method", MINERU_PARSE_METHOD),
+            formula_enable=config.get("formula_enable", MINERU_FORMULA_ENABLE),
+            table_enable=config.get("table_enable", MINERU_TABLE_ENABLE),
+        )
 
-    Returns:
-        解析结果字典
-    """
-    print(f"[http] 调用PDF解析API: {PDF_PARSE_API_URL}")
-    print(f"[file] 解析文件: {file_path}")
 
+async def call_local_mineru(file_path: str, output_dir: Path, config: Dict[str, Any]) -> Dict[str, Any]:
+    """Parse a PDF locally and normalize MinerU's generated files."""
+    print(f"[mineru] Parsing locally: {file_path}")
     try:
-        # 准备文件
-        with open(file_path, 'rb') as f:
-            files = {'files': f}
+        await asyncio.to_thread(_run_local_mineru, file_path, output_dir, config)
+    except Exception as exc:
+        traceback.print_exc()
+        return {"success": False, "error": f"Local MinerU parsing failed: {exc}"}
 
-            # 准备参数
-            data = {k: str(v) for k, v in config.items() if v is not None}
-
-            # 设置超时（大文件可能需要更长时间）
-            timeout = 3000  # 5分钟
-
-            # 发送请求
-            response = requests.post(
-                PDF_PARSE_API_URL,
-                files=files,
-                data=data,
-                timeout=timeout
-            )
-
-            print(f"[http] API响应状态: {response.status_code}")
-
-            if response.status_code == 200:
-                # 检查响应类型
-                content_type = response.headers.get('Content-Type', '')
-
-                if 'application/zip' in content_type or config.get('response_format_zip'):
-                    # ZIP格式响应
-                    return {
-                        'success': True,
-                        'content_type': 'zip',
-                        'data': response.content,
-                        'headers': dict(response.headers)
-                    }
-                elif 'application/json' in content_type:
-                    # JSON格式响应
-                    return {
-                        'success': True,
-                        'content_type': 'json',
-                        'data': response.json(),
-                        'headers': dict(response.headers)
-                    }
-                else:
-                    # 其他格式
-                    return {
-                        'success': True,
-                        'content_type': content_type,
-                        'data': response.content,
-                        'headers': dict(response.headers)
-                    }
-            else:
-                print(f"[err] API调用失败: {response.status_code}")
-                print(f"错误信息: {response.text[:500]}")
-                return {
-                    'success': False,
-                    'status_code': response.status_code,
-                    'error': response.text
-                }
-
-    except requests.exceptions.Timeout:
-        print("[err] API调用超时")
-        return {
-            'success': False,
-            'error': 'API调用超时，请稍后重试'
+    generated_files = [
+        {
+            "name": str(path.relative_to(output_dir)),
+            "path": str(path),
+            "size": path.stat().st_size,
         }
-    except requests.exceptions.ConnectionError:
-        print("[err] 无法连接到PDF解析API")
+        for path in output_dir.rglob("*")
+        if path.is_file()
+    ]
+    file_result = process_extracted_files(generated_files, output_dir)
+    if not file_result["markdown"]:
         return {
-            'success': False,
-            'error': '无法连接到PDF解析API，请检查网络连接'
+            "success": False,
+            "error": "Local MinerU completed without producing a Markdown file",
+            "files": file_result,
         }
-    except Exception as e:
-        print(f"[err] API调用异常: {str(e)}")
-        return {
-            'success': False,
-            'error': f'API调用异常: {str(e)}'
-        }
+    return {"success": True, "files": file_result}
 
-def extract_zip_result(zip_content: bytes, output_dir: Path) -> Dict[str, Any]:
-    """
-    提取ZIP格式的结果
-
-    Args:
-        zip_content: ZIP文件内容
-        output_dir: 输出目录
-
-    Returns:
-        提取结果
-    """
-    # 创建临时文件保存ZIP
-    temp_zip = output_dir / f"temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
-
-    with open(temp_zip, 'wb') as f:
-        f.write(zip_content)
-
-    extracted_files = []
-
-    try:
-        # 解压ZIP文件
-        with zipfile.ZipFile(temp_zip, 'r') as zip_ref:
-            # 获取ZIP文件列表
-            file_list = zip_ref.namelist()
-            print(f"[zip] ZIP中包含文件: {file_list}")
-
-            # 提取所有文件
-            for file_name in file_list:
-                # 安全地提取文件
-                safe_name = file_name.replace('..', '').replace('/', '_')
-                extract_path = output_dir / safe_name
-
-                with zip_ref.open(file_name) as source, open(extract_path, 'wb') as target:
-                    shutil.copyfileobj(source, target)
-
-                extracted_files.append({
-                    'name': file_name,
-                    'path': str(extract_path),
-                    'size': os.path.getsize(extract_path)
-                })
-
-        # 清理临时ZIP文件
-        temp_zip.unlink()
-
-        return {
-            'success': True,
-            'files': extracted_files,
-            'file_list': file_list
-        }
-
-    except zipfile.BadZipFile:
-        print("❌ ZIP文件损坏")
-        return {
-            'success': False,
-            'error': 'ZIP文件损坏'
-        }
-    except Exception as e:
-        print(f"[err] 解压ZIP失败: {str(e)}")
-        return {
-            'success': False,
-            'error': f'解压ZIP失败: {str(e)}'
-        }
 
 def process_extracted_files(files: List[Dict[str, Any]], output_dir: Path) -> Dict[str, Any]:
     """
@@ -242,10 +137,11 @@ def process_extracted_files(files: List[Dict[str, Any]], output_dir: Path) -> Di
             # Markdown文件
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
                     result['markdown'] = {
-                        'content': f.read(),
+                        'content': content,
                         'path': str(file_path),
-                        'size': len(f.read())
+                        'size': len(content)
                     }
             except:
                 pass
@@ -293,13 +189,13 @@ async def parse_pdf_enhanced(pdf_path: str, config: Optional[Dict[str, Any]] = N
     # 默认配置
     default_config = {
         # 'lang_list': ['ch'],
-        'backend': 'hybrid-auto-engine',
-        'parse_method': 'auto',
-        'formula_enable': True,
-        'table_enable': True,
+        'backend': MINERU_BACKEND,
+        'parse_method': MINERU_PARSE_METHOD,
+        'formula_enable': MINERU_FORMULA_ENABLE,
+        'table_enable': MINERU_TABLE_ENABLE,
         'return_md': True,
         'return_content_list': True,
-        'response_format_zip': True
+        'response_format_zip': False
     }
 
     # 合并配置
@@ -313,102 +209,22 @@ async def parse_pdf_enhanced(pdf_path: str, config: Optional[Dict[str, Any]] = N
 
     print(f"[file] 输出目录: {output_dir}")
 
-    # 1. 调用PDF解析API
-    api_result = await call_pdf_parse_api(pdf_path, default_config)
-
-    if not api_result.get('success'):
+    # MinerU runs locally; keep the old response-processing code below only
+    # for source compatibility with clients that imported these helpers.
+    local_result = await call_local_mineru(pdf_path, output_dir, default_config)
+    if not local_result.get("success"):
         return {
-            'success': False,
-            'error': api_result.get('error', '未知错误'),
-            'output_dir': str(output_dir)
+            "success": False,
+            "error": local_result.get("error", "Local MinerU parsing failed"),
+            "output_dir": str(output_dir),
+            "files": local_result.get("files", {}),
         }
 
-    # 2. 处理API响应
-    if api_result.get('content_type') == 'zip':
-        # 处理ZIP格式响应
-        zip_result = extract_zip_result(api_result['data'], output_dir)
-
-        if not zip_result.get('success'):
-            return {
-                'success': False,
-                'error': zip_result.get('error', 'ZIP处理失败'),
-                'output_dir': str(output_dir)
-            }
-
-        # 处理提取的文件
-        file_result = process_extracted_files(zip_result['files'], output_dir)
-
-        # 检查是否获取到必要文件
-        if not file_result['markdown']:
-            # 如果没有直接获取到markdown，尝试从其他文件中提取
-            markdown_content = await extract_markdown_from_other_files(output_dir)
-            if markdown_content:
-                file_result['markdown'] = {
-                    'content': markdown_content,
-                    'path': str(output_dir / 'extracted.md'),
-                    'size': len(markdown_content)
-                }
-
-                # 保存提取的markdown
-                with open(output_dir / 'extracted.md', 'w', encoding='utf-8') as f:
-                    f.write(markdown_content)
-
-        return {
-            'success': True,
-            'output_dir': str(output_dir),
-            'files': file_result,
-            'zip_files': zip_result.get('file_list', [])
-        }
-
-    elif api_result.get('content_type') == 'json':
-        # 处理JSON格式响应
-        json_data = api_result['data']
-
-        result = {
-            'success': True,
-            'output_dir': str(output_dir),
-            'files': {
-                'markdown': None,
-                'content_list': None,
-                'layout_pdf': None,
-                'other_files': []
-            }
-        }
-
-        # 提取Markdown
-        if 'md_content' in json_data:
-            markdown_content = json_data['md_content']
-            md_path = output_dir / 'output.md'
-            with open(md_path, 'w', encoding='utf-8') as f:
-                f.write(markdown_content)
-
-            result['files']['markdown'] = {
-                'content': markdown_content,
-                'path': str(md_path),
-                'size': len(markdown_content)
-            }
-
-        # 提取content_list
-        if 'content_list' in json_data:
-            content_list = json_data['content_list']
-            cl_path = output_dir / 'content_list.json'
-            with open(cl_path, 'w', encoding='utf-8') as f:
-                json.dump(content_list, f, ensure_ascii=False, indent=2)
-
-            result['files']['content_list'] = {
-                'content': content_list,
-                'path': str(cl_path),
-                'size': os.path.getsize(cl_path)
-            }
-
-        return result
-
-    else:
-        return {
-            'success': False,
-            'error': f'不支持的响应格式: {api_result.get("content_type")}',
-            'output_dir': str(output_dir)
-        }
+    return {
+        "success": True,
+        "output_dir": str(output_dir),
+        "files": local_result["files"],
+    }
 
 async def extract_markdown_from_other_files(output_dir: Path) -> Optional[str]:
     """
@@ -468,30 +284,34 @@ async def root():
             "POST /convert/from-path": "通过文件路径解析",
             "GET /download/{task_id}/{file_type}": "下载结果文件"
         },
-        "pdf_parse_api": PDF_PARSE_API_URL
+        "parser": {
+            "engine": "mineru",
+            "mode": "local",
+            "backend": MINERU_BACKEND,
+            "parse_method": MINERU_PARSE_METHOD,
+            "model_source": MINERU_MODEL_SOURCE,
+        }
     }
 
 @app.get("/health")
 async def health_check():
     """健康检查"""
-    # 测试PDF解析API连通性
-    try:
-        response = requests.get(f"{PDF_PARSE_API_URL.replace('/file_parse', '')}/health", timeout=5)
-        pdf_api_status = "healthy" if response.status_code == 200 else "unhealthy"
-    except:
-        pdf_api_status = "unreachable"
-
     return {
-        "status": "healthy",
+        "status": "healthy" if MINERU_AVAILABLE else "degraded",
         "timestamp": datetime.now().isoformat(),
-        "pdf_parse_api_status": pdf_api_status
+        "mineru": {
+            "available": MINERU_AVAILABLE,
+            "backend": MINERU_BACKEND,
+            "parse_method": MINERU_PARSE_METHOD,
+            "import_error": MINERU_IMPORT_ERROR,
+        },
     }
 
 @app.post("/convert/upload")
 async def convert_from_upload(
     file: UploadFile = File(...),
     lang_list: str = Form("ch"),
-    backend: str = Form("hybrid-auto-engine"),
+    backend: str = Form("pipeline"),
     formula_enable: bool = Form(True),
     table_enable: bool = Form(True)
 ):
@@ -518,12 +338,12 @@ async def convert_from_upload(
         config = {
             'lang_list': lang_list.split(',') if ',' in lang_list else [lang_list],
             'backend': backend,
-            'parse_method': 'auto',
+            'parse_method': MINERU_PARSE_METHOD,
             'formula_enable': formula_enable,
             'table_enable': table_enable,
             'return_md': True,
             'return_content_list': True,
-            'response_format_zip': True
+            'response_format_zip': False
         }
 
         # 解析PDF
@@ -741,7 +561,7 @@ if __name__ == "__main__":
     print(f"上传目录: {UPLOAD_DIR.absolute()}")
     print(f"输出目录: {OUTPUT_DIR.absolute()}")
     print(f"服务地址: http://localhost:8002")
-    print(f"PDF解析API: {PDF_PARSE_API_URL}")
+    print(f"MinerU: local ({MINERU_BACKEND}/{MINERU_PARSE_METHOD})")
     print(f"API文档: http://localhost:8002/docs")
     print("")
     print("功能特性:")

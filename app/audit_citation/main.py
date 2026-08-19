@@ -5,6 +5,7 @@
 import os
 import re
 import asyncio
+import sys
 from pathlib import Path
 
 try:
@@ -13,6 +14,13 @@ try:
     load_dotenv(Path(__file__).resolve().parent / ".env")
 except ImportError:
     pass
+
+APP_ROOT = Path(__file__).resolve().parents[1]
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
+from llm_config import get_deepseek_config
+
+DEEPSEEK_CONFIG = get_deepseek_config()
 import httpx
 from datetime import datetime
 from fastapi import FastAPI, BackgroundTasks
@@ -89,10 +97,10 @@ BACKEND_URL = os.environ.get("BACKEND_URL", "http://localhost:8000")
 RAG_TOP_K = 3
 SERPAPI_KEY = os.environ.get("SERPAPI_KEY", "").strip()
 # LLM：用于关联性核查（方案 A），支持单模型或多模型轮询
-DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "").strip()
-LLM_BASE_URL = os.environ.get("DEEPSEEK_BASE_URL", "").strip()
-LLM_API_KEY = os.environ.get("LLM_API_KEY", DEEPSEEK_API_KEY).strip()
-LLM_MODEL = os.environ.get("LLM_MODEL", os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")).strip()
+DEEPSEEK_API_KEY = DEEPSEEK_CONFIG.api_key
+LLM_BASE_URL = DEEPSEEK_CONFIG.base_url
+LLM_API_KEY = DEEPSEEK_CONFIG.api_key
+LLM_MODEL = DEEPSEEK_CONFIG.model
 LLM_MODE = os.environ.get("LLM_MODE", "single").strip().lower()  # single | multi
 LLM_MODELS_RAW = os.environ.get("LLM_MODELS", "").strip()
 LLM_MODEL_LIST = [m.strip() for m in LLM_MODELS_RAW.split(",") if m.strip()] or [LLM_MODEL]
@@ -287,7 +295,7 @@ async def _llm_citation_relevance(citing_sentence: str, scholar_title: str, scho
 第一行：是 或 否
 第二行：若否，用一句话说明原因（若是一行可留空）。"""
     try:
-        async with httpx.AsyncClient(timeout=600.0) as client:
+        async with httpx.AsyncClient(timeout=DEEPSEEK_CONFIG.timeout_seconds) as client:
             r = await client.post(
                 url,
                 headers=headers,

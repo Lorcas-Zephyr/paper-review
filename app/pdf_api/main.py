@@ -5,10 +5,10 @@
 import os
 import uuid
 import shutil
+import sys
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
-import requests
 from fastapi import FastAPI, UploadFile, File, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -16,8 +16,12 @@ from pydantic import BaseModel
 import PyPDF2
 from dotenv import load_dotenv
 
-# 加载环境变量
-load_dotenv()
+# Load the shared app configuration before importing the local parser.
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+from pdf_to_md.main import parse_pdf_enhanced
 
 # 配置
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "uploads"))
@@ -361,85 +365,26 @@ async def list_files():
 @app.post("/api/parse-pdf")
 async def parse_pdf_proxy(data: dict):
     """
-    代理调用PDF解析API
+    Parse a stored PDF with the local MinerU runtime.
     """
-    try:
-        file_path = data.get("file_path")
-        config = data.get("config", {})
+    file_path = data.get("file_path")
+    config = data.get("config", {})
+    if not file_path or not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="文件不存在")
 
-        if not file_path or not os.path.exists(file_path):
-            raise HTTPException(status_code=404, detail="文件不存在")
+    result = await parse_pdf_enhanced(file_path, config)
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error", "解析失败"))
 
-        # 1. 读取PDF文件
-        with open(file_path, 'rb') as f:
-            files = {'files': f}
-
-            # 2. 准备参数
-            form_data = {k: str(v) for k, v in config.items()}
-
-            # 3. 调用PDF解析API
-            pdf_parse_url = os.getenv("PDF_PARSE_API_URL", "http://127.0.0.1:8000/file_parse")
-            response = requests.post(
-                pdf_parse_url,
-                files=files,
-                data=form_data,
-                timeout=300
-            )
-
-            if response.status_code == 200:
-                # 4. 处理响应
-                content_type = response.headers.get('Content-Type', '')
-
-                if 'application/zip' in content_type or config.get('response_format_zip'):
-                    # 处理ZIP响应
-                    import zipfile
-                    import io
-                    import json
-
-                    zip_bytes = io.BytesIO(response.content)
-
-                    with zipfile.ZipFile(zip_bytes, 'r') as zip_ref:
-                        # 查找Markdown文件
-                        md_content = None
-                        content_list = None
-
-                        for file_name in zip_ref.namelist():
-                            if file_name.endswith('.md'):
-                                with zip_ref.open(file_name) as f:
-                                    md_content = f.read().decode('utf-8')
-                            elif 'content_list' in file_name and file_name.endswith('.json'):
-                                with zip_ref.open(file_name) as f:
-                                    content_list = json.load(f)
-
-                        if md_content:
-                            return {
-                                "success": True,
-                                "markdown_content": md_content,
-                                "content_list": content_list,
-                                "file_name": os.path.basename(file_path)
-                            }
-                        else:
-                            raise HTTPException(status_code=500, detail="未找到Markdown内容")
-                else:
-                    # JSON响应
-                    result = response.json()
-                    if 'md_content' in result:
-                        return {
-                            "success": True,
-                            "markdown_content": result.get('md_content'),
-                            "content_list": result.get('content_list'),
-                            "file_name": os.path.basename(file_path)
-                        }
-                    else:
-                        raise HTTPException(status_code=500, detail="API返回格式错误")
-            else:
-                raise HTTPException(
-                    status_code=response.status_code,
-                    detail=f"PDF解析API错误: {response.text}"
-                )
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"解析失败: {str(e)}")
+    markdown = result.get("files", {}).get("markdown") or {}
+    content_list = result.get("files", {}).get("content_list") or {}
+    return {
+        "success": True,
+        "markdown_content": markdown.get("content"),
+        "content_list": content_list.get("content"),
+        "file_name": os.path.basename(file_path),
+        "output_dir": result.get("output_dir"),
+    }
 
 # 删除文件接口（可选）
 @app.delete("/api/file/{filename}")

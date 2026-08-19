@@ -38,7 +38,7 @@
 
 ## 本地运行
 
-环境要求：Python 3.10+、Node.js LTS、PostgreSQL 14+、pgvector，以及一个兼容 OpenAI API 的大模型服务。PDF 转换服务还依赖可访问的 `PDF_PARSE_API_URL`。
+环境要求：Python 3.10+、Node.js LTS、PostgreSQL 14+、pgvector，以及一个兼容 OpenAI API 的大模型服务。PDF 转换服务使用本地 `mineru[core]` 推理，不再依赖远程 PDF 解析服务。
 
 ```bash
 cp app/.env.example app/.env
@@ -49,6 +49,8 @@ bash start.sh
 ```
 
 按实际环境填写 `app/.env`，不要提交密钥。启动脚本默认提供：前端 `3002`、上传 `5000`、转换 `8002`、文献 `8005`、实验 `8006`、格式 `8007`、逻辑 `8008`、反思 `8009`、调度器 `7860`。
+
+MinerU 首次使用前需要准备本地模型：`python -m mineru.cli.models_download -s modelscope -m pipeline`。模型下载完成后，PDF 转换运行在本机，不再请求远程解析服务。
 
 ## 项目边界
 

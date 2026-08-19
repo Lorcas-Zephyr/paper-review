@@ -20,7 +20,7 @@
 | `content` | string | 否 | null | [测试用] 直接传入待审计的文本内容。如果为空，将尝试从专家数据库读取。 |
 | `callback_url` | string | 否 | null | 异步回调地址，用于接收审计完成通知 |
 | `audit_scope` | array[string] | 否 | `["abstract", "methodology", "experiment", "code"]` | 指定需要审计的章节 |
-| `model_preference` | string | 否 | `deepseek-chat` | 偏好的 AI 模型 |
+| `model_preference` | string | 否 | `deepseek-v4-flash` | 偏好的 AI 模型 |
 
 **示例请求 (JSON)**:
 ```json
@@ -28,7 +28,7 @@
   "paper_id": "paper-2024-001",
   "content": "## 4. 实验结果\n本次实验在 MNIST 数据集上进行...",
   "audit_scope": ["experiment"],
-  "model_preference": "deepseek-chat"
+  "model_preference": "deepseek-v4-flash"
 }
 ```
 

@@ -12,12 +12,18 @@ import json
 import logging
 import os
 import re
+import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional
 
 import httpx
 
 from agent_registry import AgentRegistry
+APP_ROOT = Path(__file__).resolve().parents[1]
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
+from llm_config import get_deepseek_config
 
 logger = logging.getLogger(__name__)
 
@@ -318,28 +324,25 @@ class AIPlanner:
                 return json.dumps(value, ensure_ascii=False)
             return str(value)
 
-        api_key = os.getenv("LLM_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
-        if not api_key:
-            raise RuntimeError("LLM_API_KEY/DEEPSEEK_API_KEY is not configured")
-        base_url = os.getenv("LLM_BASE_URL") or os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-        endpoint = base_url.rstrip("/")
-        if not endpoint.endswith("/chat/completions"):
-            endpoint += "/chat/completions"
-        model = os.getenv("LLM_MODEL") or os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+        llm = get_deepseek_config(require_key=True)
         payload = {
-            "model": model,
-            "temperature": 0,
+            "model": llm.model,
+            "temperature": llm.temperature,
             "messages": [
                 {"role": "system", "content": "You output strict JSON and nothing else."},
                 {"role": "user", "content": prompt},
             ],
-            "response_format": {"type": "json_object"},
+            "max_tokens": llm.max_tokens,
         }
-        async with httpx.AsyncClient(timeout=self.timeout, trust_env=False) as client:
+        if llm.json_mode:
+            payload["response_format"] = {"type": "json_object"}
+        if llm.thinking_enabled:
+            payload["thinking"] = {"type": "enabled"}
+        async with httpx.AsyncClient(timeout=llm.timeout_seconds, trust_env=False) as client:
             response = await client.post(
-                endpoint,
+                llm.chat_completions_url,
                 json=payload,
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                headers={"Authorization": f"Bearer {llm.api_key}", "Content-Type": "application/json"},
             )
             response.raise_for_status()
             data = response.json()

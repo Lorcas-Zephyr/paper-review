@@ -2,34 +2,20 @@
 统一API配置模块
 使用DeepSeek API进行LLM调用
 """
-import os
 import logging
+import sys
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 import httpx
 
 logger = logging.getLogger(__name__)
 
-# 尝试加载.env文件
-try:
-    from dotenv import load_dotenv
-    # 查找.env文件（从当前文件向上查找到项目根目录）
-    env_path = Path(__file__).parent.parent.parent / ".env"
-    if env_path.exists():
-        load_dotenv(env_path)
-        logger.info(f"已加载.env文件: {env_path}")
-    else:
-        # 尝试从当前工作目录加载
-        load_dotenv()
-except ImportError:
-    logger.warning("未安装python-dotenv库，无法自动加载.env文件")
-except Exception as e:
-    logger.warning(f"加载.env文件失败: {e}")
+APP_ROOT = Path(__file__).resolve().parents[3]
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
+from llm_config import get_deepseek_config
 
-# DeepSeek API配置
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
-DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
-DEEPSEEK_MODEL = "deepseek-chat"
+DEEPSEEK_CONFIG = get_deepseek_config()
 
 
 class DeepSeekClient:
@@ -41,9 +27,9 @@ class DeepSeekClient:
         base_url: Optional[str] = None,
         model: Optional[str] = None
     ):
-        self.api_key = api_key or DEEPSEEK_API_KEY
-        self.base_url = base_url or DEEPSEEK_BASE_URL
-        self.model = model or DEEPSEEK_MODEL
+        self.api_key = api_key or DEEPSEEK_CONFIG.api_key
+        self.base_url = (base_url or DEEPSEEK_CONFIG.base_url).rstrip("/")
+        self.model = model or DEEPSEEK_CONFIG.model
         self._client: Optional[httpx.AsyncClient] = None
 
         if not self.api_key:
@@ -52,7 +38,7 @@ class DeepSeekClient:
     async def _get_client(self) -> httpx.AsyncClient:
         """获取或创建HTTP客户端"""
         if self._client is None or self._client.is_closed:
-            self._client = httpx.AsyncClient(timeout=600.0)
+            self._client = httpx.AsyncClient(timeout=DEEPSEEK_CONFIG.timeout_seconds)
         return self._client
 
     async def close(self):
@@ -72,8 +58,8 @@ class DeepSeekClient:
     async def chat_completion(
         self,
         messages: List[Dict[str, str]],
-        temperature: float = 0.3,
-        max_tokens: int = 2000,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
         **kwargs
     ) -> Dict[str, Any]:
         """
@@ -91,7 +77,7 @@ class DeepSeekClient:
         if not self.api_key:
             raise ValueError("DeepSeek API密钥未设置")
 
-        url = f"{self.base_url}/chat/completions"
+        url = self.base_url if self.base_url.endswith("/chat/completions") else f"{self.base_url}/chat/completions"
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
@@ -100,8 +86,8 @@ class DeepSeekClient:
         payload = {
             "model": self.model,
             "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
+            "temperature": DEEPSEEK_CONFIG.temperature if temperature is None else temperature,
+            "max_tokens": DEEPSEEK_CONFIG.max_tokens if max_tokens is None else max_tokens,
             **kwargs
         }
 

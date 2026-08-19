@@ -13,6 +13,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 import time
 
+APP_ROOT = Path(__file__).resolve().parents[1]
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
+from llm_config import get_deepseek_config
+
+DEEPSEEK_CONFIG = get_deepseek_config()
+
 # Try to import openai, handle missing dependency gracefully
 try:
     from openai import OpenAI
@@ -71,7 +78,7 @@ class AuditRequest(BaseModel):
     paper_id: str = Field(..., description="论文唯一标识符")
     callback_url: Optional[str] = Field(None, description="异步回调地址")
     audit_scope: List[str] = Field(["abstract", "methodology", "experiment", "code"], description="指定需要审计的章节")
-    model_preference: Optional[str] = Field("deepseek-chat", description="偏好的AI模型")
+    model_preference: Optional[str] = Field("deepseek-v4-flash", description="偏好的AI模型")
     enable_rules: bool = Field(True, description="为 False 时跳过规则引擎与数据库结构化规则，仅用大模型做实验数据审阅")
     # 调度器传入与库一致的全文；未传时从专家库按 paper_id 聚合
     content: Optional[str] = Field(None, description="论文全文 Markdown；优先于数据库拉取")
@@ -393,12 +400,16 @@ class ExpertDatabase:
 
 # --- 4. Agent 实现 ---
 class ExperimentDataAgent:
-    def __init__(self, api_key=None, base_url=None, model="deepseek-chat"):
-        self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
-        self.base_url = base_url or os.getenv("DEEPSEEK_BASE_URL")
-        self.model = model
+    def __init__(self, api_key=None, base_url=None, model=None):
+        self.api_key = api_key or DEEPSEEK_CONFIG.api_key
+        self.base_url = base_url or DEEPSEEK_CONFIG.base_url
+        self.model = model or DEEPSEEK_CONFIG.model
         if self.api_key:
-             self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+             self.client = OpenAI(
+                 api_key=self.api_key,
+                 base_url=self.base_url,
+                 timeout=DEEPSEEK_CONFIG.timeout_seconds,
+             )
         else:
             self.client = None
 
@@ -526,8 +537,9 @@ class ExperimentDataAgent:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.1,
-                response_format={"type": "json_object"}
+                temperature=DEEPSEEK_CONFIG.temperature,
+                max_tokens=DEEPSEEK_CONFIG.max_tokens,
+                **({"response_format": {"type": "json_object"}} if DEEPSEEK_CONFIG.json_mode else {})
             )
             raw_text = response.choices[0].message.content
             llm_response = self._parse_json_safely(raw_text)
@@ -772,8 +784,8 @@ latest_audit_result: Optional[AuditResponse] = None
 startup_time = time.time()  # 记录服务启动时间
 
 # 从环境变量读取
-API_KEY = os.getenv("DEEPSEEK_API_KEY", "").strip() or None
-BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com").strip()
+API_KEY = DEEPSEEK_CONFIG.api_key or None
+BASE_URL = DEEPSEEK_CONFIG.base_url
 
 global_agent = ExperimentDataAgent(api_key=API_KEY, base_url=BASE_URL)
 expert_db = ExpertDatabase()

@@ -252,7 +252,7 @@ const App = () => {
         file_path: uploadResult.file_path,
         config: {
           // lang_list: ["zh"],
-          backend: "hybrid-auto-engine",
+          backend: "pipeline",
           formula_enable: false,
           table_enable: false
         }

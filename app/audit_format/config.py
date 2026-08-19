@@ -1,10 +1,18 @@
 from enum import Enum
 from typing import List
 import os
+import sys
+from pathlib import Path
 from dotenv import load_dotenv
 from urllib.parse import quote_plus, urlsplit
 
 load_dotenv(override=False)
+APP_ROOT = Path(__file__).resolve().parents[1]
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
+from llm_config import get_deepseek_config
+
+DEEPSEEK_CONFIG = get_deepseek_config()
 
 # Agent基本信息
 AGENT_NAME = "Standardization_Auditor_Agent"
@@ -24,13 +32,13 @@ QWEN_BASE_URL = os.getenv("QWEN_BASE_URL", "https://dashscope.aliyuncs.com/compa
 QWEN_MODEL_NAME = os.getenv("QWEN_MODEL_NAME", "qwen-plus")
 
 # DeepSeek 配置
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
-DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-DEEPSEEK_MODEL_NAME = os.getenv("DEEPSEEK_MODEL_NAME", "deepseek-chat")
+DEEPSEEK_API_KEY = DEEPSEEK_CONFIG.api_key
+DEEPSEEK_BASE_URL = DEEPSEEK_CONFIG.base_url
+DEEPSEEK_MODEL_NAME = DEEPSEEK_CONFIG.model
 
 # LLM Provider: "gemini", "qwen", "deepseek" or "mock"
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "mock")
-LLM_TIMEOUT_SEC = int(os.getenv("LLM_TIMEOUT_SEC", "600"))
+LLM_TIMEOUT_SEC = DEEPSEEK_CONFIG.timeout_seconds
 
 # RAG / Embedding 配置
 SBERT_MODEL_NAME = os.getenv("SBERT_MODEL_NAME", "sentence-transformers/paraphrase-multilingual-mpnet-base-v2")
