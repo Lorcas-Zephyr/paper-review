@@ -38,6 +38,12 @@ yarn-error.log*
 **/audit_result.json
 *.log
 
+# Local paper corpus (raw PDFs are not source-controlled). A generated JSONL
+# manifest may be committed because it contains relative paths and metadata.
+/papers/*
+!/papers/manifest.jsonl
+!/papers/README.md
+
 # IDE and OS
 .idea/
 .vscode/

@@ -62,7 +62,7 @@ class EventBus:
         for event in events:
             if event.get("producer_agent") == agent_name:
                 continue
-            if allowed_types and event.get("event_type") not in allowed_types:
+            if allowed_types and "*" not in allowed_types and event.get("event_type") not in allowed_types:
                 continue
             visible_events.append(event)
         return visible_events

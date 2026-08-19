@@ -42,13 +42,29 @@ class PostgresTaskStore:
             aggregated_report JSONB NULL,
             message TEXT NULL,
             created_at TIMESTAMP NOT NULL,
-            updated_at TIMESTAMP NOT NULL
+            updated_at TIMESTAMP NOT NULL,
+            planner_status JSONB NOT NULL DEFAULT '{}'::jsonb,
+            plan JSONB NULL,
+            round INTEGER NOT NULL DEFAULT 0,
+            consultation_count INTEGER NOT NULL DEFAULT 0,
+            scheduler_backend TEXT NOT NULL DEFAULT 'ai_planner_runtime'
         );
         """
         try:
             conn = self._connect()
             cur = conn.cursor()
             cur.execute(sql)
+            conn.commit()
+            # Existing deployments created before the AI scheduler need an
+            # additive migration.  ALTER TABLE is idempotent and non-destructive.
+            for statement in (
+                "ALTER TABLE orchestrator_tasks ADD COLUMN IF NOT EXISTS planner_status JSONB NOT NULL DEFAULT '{}'::jsonb",
+                "ALTER TABLE orchestrator_tasks ADD COLUMN IF NOT EXISTS plan JSONB NULL",
+                "ALTER TABLE orchestrator_tasks ADD COLUMN IF NOT EXISTS round INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE orchestrator_tasks ADD COLUMN IF NOT EXISTS consultation_count INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE orchestrator_tasks ADD COLUMN IF NOT EXISTS scheduler_backend TEXT NOT NULL DEFAULT 'ai_planner_runtime'",
+            ):
+                cur.execute(statement)
             conn.commit()
             cur.close()
             conn.close()
@@ -61,15 +77,21 @@ class PostgresTaskStore:
             return
         sql = """
         INSERT INTO orchestrator_tasks (
-            request_id, paper_id, overall_status, progress, aggregated_report, message, created_at, updated_at
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            request_id, paper_id, overall_status, progress, aggregated_report, message, created_at, updated_at,
+            planner_status, plan, round, consultation_count, scheduler_backend
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (request_id) DO UPDATE SET
             paper_id = EXCLUDED.paper_id,
             overall_status = EXCLUDED.overall_status,
             progress = EXCLUDED.progress,
             aggregated_report = EXCLUDED.aggregated_report,
             message = EXCLUDED.message,
-            updated_at = EXCLUDED.updated_at;
+            updated_at = EXCLUDED.updated_at,
+            planner_status = EXCLUDED.planner_status,
+            plan = EXCLUDED.plan,
+            round = EXCLUDED.round,
+            consultation_count = EXCLUDED.consultation_count,
+            scheduler_backend = EXCLUDED.scheduler_backend;
         """
         try:
             conn = self._connect()
@@ -85,6 +107,11 @@ class PostgresTaskStore:
                     task.get("message"),
                     self._to_datetime(task.get("created_at")),
                     self._to_datetime(task.get("updated_at")),
+                    Json(task.get("planner_status", {})),
+                    Json(task.get("plan")) if task.get("plan") is not None else None,
+                    int(task.get("round", 0) or 0),
+                    int(task.get("consultation_count", 0) or 0),
+                    task.get("scheduler_backend", "ai_planner_runtime"),
                 ),
             )
             conn.commit()
@@ -97,7 +124,8 @@ class PostgresTaskStore:
         if not self._enabled:
             return None
         sql = """
-        SELECT request_id, paper_id, overall_status, progress, aggregated_report, message, created_at, updated_at
+        SELECT request_id, paper_id, overall_status, progress, aggregated_report, message, created_at, updated_at,
+               planner_status, plan, round, consultation_count, scheduler_backend
         FROM orchestrator_tasks
         WHERE request_id = %s
         """

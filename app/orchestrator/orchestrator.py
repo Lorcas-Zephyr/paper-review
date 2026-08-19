@@ -1,6 +1,7 @@
 # 在调度器的开头添加导入
 import asyncio
 import logging
+import os
 import uuid
 from datetime import datetime
 from typing import Dict, List, Any, Optional
@@ -19,6 +20,7 @@ from reflection_bridge import merge_aggregate_and_reflection, run_reflection_eva
 from event_bus import EventBus
 from nanobot_workflow import NanobotWorkflowRunner
 from task_store import PostgresTaskStore
+from paper_dataset import load_manifest
 
 logger = logging.getLogger(__name__)
 
@@ -89,12 +91,40 @@ class TaskStatus(BaseModel):
     message: Optional[str] = None
     trace_id: Optional[str] = None
     event_count: int = 0
+    planner_status: Dict[str, Any] = Field(default_factory=dict)
+    plan: Optional[Dict[str, Any]] = None
+    round: int = 0
+    consultation_count: int = 0
+    scheduler_backend: str = "ai_planner_runtime"
 
 # ========== 2. Orchestrator 核心调度类 ==========
 class Orchestrator:
     def __init__(self):
         # 1. 初始化论文处理器
         self.paper_processor = PaperProcessor()
+
+        # Loading the compact manifest is cheap; raw PDFs are resolved only by
+        # offline evaluation code and are never scanned on service startup.
+        self.dataset_root = os.getenv("PAPERS_ROOT", "papers")
+        self.dataset_manifest = os.getenv(
+            "PAPERS_MANIFEST",
+            os.path.join(self.dataset_root, "manifest.jsonl"),
+        )
+        self.dataset_summary: Dict[str, Any] = {"configured": False}
+        try:
+            rows = load_manifest(self.dataset_manifest)
+            self.dataset_summary = {
+                "configured": True,
+                "manifest": self.dataset_manifest,
+                "sample_count": len(rows),
+                "review_count": sum(int(row.get("review_count", 0) or 0) for row in rows),
+            }
+        except Exception as exc:
+            self.dataset_summary = {
+                "configured": False,
+                "manifest": self.dataset_manifest,
+                "error": str(exc),
+            }
 
         # 2. 审计组接口配置
         self.agent_endpoints = {
@@ -139,16 +169,10 @@ class Orchestrator:
         # 3. 内存存储任务状态
         self.tasks: Dict[str, TaskStatus] = {}
         self.task_store = PostgresTaskStore()
-        event_subscriptions = {
-            "logic_agent": {"agent.findings.citation_agent", "agent.findings.format_agent"},
-            "citation_agent": {"agent.findings.logic_agent"},
-            "format_agent": {"agent.findings.logic_agent", "agent.findings.citation_agent"},
-            "experiment_agent": {
-                "agent.findings.logic_agent",
-                "agent.findings.citation_agent",
-                "agent.findings.format_agent",
-            },
-        }
+        # Agent-to-agent visibility is controlled by the runtime and request
+        # scope.  The wildcard lets a planner-created task consume findings
+        # from any peer without hard-coding a new subscription for every plan.
+        event_subscriptions = {name: {"*"} for name in self.agent_endpoints}
         self.event_bus = EventBus(subscriptions=event_subscriptions)
         self.nanobot_runner = NanobotWorkflowRunner(
             agent_endpoints=self.agent_endpoints,
@@ -236,6 +260,11 @@ class Orchestrator:
             "paper_id": paper_id,
             "consumer_agent": agent_name,
             "events": interaction_events or [],
+            # Private runtime keys are stripped from the outbound payload and
+            # re-exposed here as the stable agent collaboration contract.
+            "planner_task": cfg.get("_planner_task"),
+            "blackboard": cfg.get("_blackboard_context", {}),
+            "consultation_request": cfg.get("_consultation_request"),
         }
 
         print(f"  [agent] 调用 {agent_name} 处理论文: {paper_id}")
@@ -453,9 +482,12 @@ class Orchestrator:
 
         try:
             print(f"\n1. [nanobot] 执行 nanobot 编排流程 (包含paper_id: {paper_id})...")
+            self.tasks[request_id].progress["planner"] = AuditStatus.RUNNING
             for agent_name in self.agent_endpoints.keys():
                 agent_task_key = f"{agent_name}_chunk_full"
-                self.tasks[request_id].progress[agent_task_key] = AuditStatus.RUNNING
+                # The planner may deliberately omit an Agent. Mark it as
+                # pending until the validated plan tells us whether it runs.
+                self.tasks[request_id].progress[agent_task_key] = "PENDING"
             sub_cfg = paper_data.config if isinstance(paper_data.config, dict) else {}
             self._persist_task(request_id)
             workflow_result = await self.nanobot_runner.run(
@@ -467,6 +499,24 @@ class Orchestrator:
             )
             all_results = workflow_result["all_results"]
             aggregated_report = workflow_result["aggregated_report"]
+
+            self.tasks[request_id].planner_status = workflow_result.get("planner_status", {})
+            self.tasks[request_id].plan = workflow_result.get("plan")
+            self.tasks[request_id].round = int(workflow_result.get("round", 0) or 0)
+            self.tasks[request_id].consultation_count = int(workflow_result.get("consultation_count", 0) or 0)
+            self.tasks[request_id].scheduler_backend = str(
+                workflow_result.get("scheduler_backend", "ai_planner_runtime")
+            )
+            self.tasks[request_id].progress["planner"] = AuditStatus.SUCCESS
+            selected_agents = {
+                str(result.get("agent_name"))
+                for result in all_results
+                if result.get("agent_name")
+            }
+            for agent_name in self.agent_endpoints:
+                key = f"{agent_name}_chunk_full"
+                if agent_name not in selected_agents and self.tasks[request_id].progress.get(key) == "PENDING":
+                    self.tasks[request_id].progress[key] = "SKIPPED"
 
             # 【步骤3：更新整体任务状态为 SUCCESS】
             self.tasks[request_id].overall_status = AuditStatus.SUCCESS
@@ -488,6 +538,7 @@ class Orchestrator:
             traceback.print_exc()
 
             self.tasks[request_id].overall_status = AuditStatus.FAILED
+            self.tasks[request_id].progress["planner"] = AuditStatus.FAILED
             self.tasks[request_id].updated_at = datetime.now()
             self.tasks[request_id].message = f"处理失败: {str(e)}"
             self._persist_task(request_id)
@@ -652,7 +703,9 @@ async def health_check():
         "status": "healthy",
         "service": "orchestrator",
         "timestamp": datetime.now().isoformat(),
-        "agents_count": len(orchestrator.agent_endpoints)
+        "agents_count": len(orchestrator.agent_endpoints),
+        "scheduler_backend": orchestrator.nanobot_runner.backend,
+        "dataset": orchestrator.dataset_summary,
     }
 
 @app.post("/api/v1/audit")
