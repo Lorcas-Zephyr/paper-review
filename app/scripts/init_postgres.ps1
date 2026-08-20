@@ -121,6 +121,17 @@ GRANT CONNECT ON DATABASE "$DatabaseName" TO "$AppUser";
 GRANT USAGE, CREATE ON SCHEMA public TO "$AppUser";
 GRANT SELECT, INSERT, UPDATE, DELETE, REFERENCES, TRIGGER ON ALL TABLES IN SCHEMA public TO "$AppUser";
 GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO "$AppUser";
+DO `$`$
+DECLARE item RECORD;
+BEGIN
+    FOR item IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP
+        EXECUTE format('ALTER TABLE public.%I OWNER TO %I', item.tablename, '$AppUser');
+    END LOOP;
+    FOR item IN SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = 'public' LOOP
+        EXECUTE format('ALTER SEQUENCE public.%I OWNER TO %I', item.sequence_name, '$AppUser');
+    END LOOP;
+END
+`$`$;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE, REFERENCES, TRIGGER ON TABLES TO "$AppUser";
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO "$AppUser";
 "@
