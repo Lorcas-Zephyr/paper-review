@@ -52,6 +52,17 @@ function Invoke-Psql([string]$Psql, [string]$Db, [string]$Sql, [string]$Password
     }
 }
 
+function Invoke-PsqlScalar([string]$Psql, [string]$Db, [string]$Sql, [string]$Password) {
+    $env:PGPASSWORD = $Password
+    try {
+        $value = & $Psql -X -w -t -A -h $HostName -p $Port -U $AdminUser -d $Db -c $Sql 2>$null
+        if ($LASTEXITCODE -ne 0) { throw "psql query failed with exit code $LASTEXITCODE" }
+        return ($value | Out-String).Trim()
+    } finally {
+        Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
+    }
+}
+
 if (-not (Test-Path $SchemaFile)) { throw "Schema file not found: $SchemaFile" }
 if (-not $SkipServiceCheck) {
     $service = Get-Service -Name "postgresql-x64-18" -ErrorAction SilentlyContinue
@@ -87,8 +98,7 @@ END
 "@
 Invoke-Psql $Psql "postgres" $roleSql $adminPassword
 
-$dbExists = (& $Psql -X -w -t -A -h $HostName -p $Port -U $AdminUser -d "postgres" -c "SELECT 1 FROM pg_database WHERE datname = '$($DatabaseName.Replace("'", "''"))';" 2>$null)
-if ($LASTEXITCODE -ne 0) { throw "Unable to query PostgreSQL. Check the administrator password." }
+$dbExists = Invoke-PsqlScalar $Psql "postgres" "SELECT 1 FROM pg_database WHERE datname = '$($DatabaseName.Replace("'", "''"))';" $adminPassword
 if (($dbExists -match "1") -and $RecreateDatabase) {
     Write-Host "Dropping only the project database '$DatabaseName' as requested..."
     $dropDbSql = 'DROP DATABASE "' + $DatabaseName + '" WITH (FORCE);'
@@ -121,7 +131,10 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENC
 }
 
 if ($UpdateEnv) {
-    $lines = if (Test-Path $EnvFile) { [Collections.Generic.List[string]](Get-Content $EnvFile) } else { [Collections.Generic.List[string]]::new() }
+    $lines = New-Object 'System.Collections.Generic.List[string]'
+    if (Test-Path $EnvFile) {
+        foreach ($line in (Get-Content $EnvFile)) { [void]$lines.Add([string]$line) }
+    }
     $values = @{
         POSTGRES_HOST = $HostName; POSTGRES_PORT = "$Port"; POSTGRES_DB = $DatabaseName; POSTGRES_USER = $AppUser; POSTGRES_PASSWORD = $AppPassword
         DB_HOST = $HostName; DB_PORT = "$Port"; DB_NAME = $DatabaseName; DB_USER = $AppUser; DB_PASSWORD = $AppPassword
