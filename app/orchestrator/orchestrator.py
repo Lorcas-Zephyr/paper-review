@@ -470,7 +470,21 @@ class Orchestrator:
 
         # 【新增步骤0：存储论文到数据库，获取paper_id】
         print(f"\n0. [db] 存储论文到数据库...")
-        paper_id = canonical_paper_id(await self.process_paper_and_store(paper_data))
+        try:
+            paper_id = canonical_paper_id(await self.process_paper_and_store(paper_data))
+        except Exception as exc:
+            # Storage is a prerequisite for the agent calls. Mark the task as
+            # failed immediately instead of leaving the UI polling forever.
+            print(f"[err] Paper storage failed: {exc}")
+            import traceback
+            traceback.print_exc()
+            task = self.tasks[request_id]
+            task.overall_status = AuditStatus.FAILED
+            task.progress["storage"] = AuditStatus.FAILED
+            task.updated_at = datetime.now()
+            task.message = f"Paper storage failed: {exc}"
+            self._persist_task(request_id)
+            return
         print(f"   [ok] 论文存储完成，paper_id: {paper_id}")
 
         # 更新整体任务状态为 RUNNING
